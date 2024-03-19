@@ -1,0 +1,28 @@
+mod colorspace;
+mod arguments;
+use arguments::Args;
+use image::JpegImage;
+mod image;
+
+fn main() {
+    // parse arguments
+
+    let args: Args = Args::get_args();
+    args.print_args();
+
+    // create jpeg image object from bmp file, with color space conversion to ycbcr
+
+    let mut jpeg_image: JpegImage = JpegImage::create_from_bmp(&args.image);
+
+    // Chrominance Downsampling
+
+    jpeg_image.chrominance_downsampling();
+
+    // Discrete Cosine Transform
+
+    // Quantization
+
+    // Run Length and Huffman Encoding
+
+    // write to ouptut file
+}
