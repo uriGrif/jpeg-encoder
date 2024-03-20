@@ -110,7 +110,49 @@ impl JpegImage {
         let mut new_cb = Vec::<u8>::with_capacity((new_width * new_height) as usize);
         let mut new_cr = Vec::<u8>::with_capacity((new_width * new_height) as usize);
 
-        //TODO
+        let width_iter = (0..self.width as i32).filter(|x| x % 2 == 0);
+        let height_iter = (0..self.height as i32).filter(|x| x % 2 == 0);
+
+        for i in height_iter {
+            for j in width_iter.clone() {
+                let mut cb_values_amount: u16 = 0;
+                let mut cr_values_amount: u16 = 0;
+                let mut cb_values_sum: u16 = 0;
+                let mut cr_values_sum: u16 = 0;
+
+                cb_values_sum += self.cb_channel[(self.height * i + j) as usize] as u16;
+                cb_values_amount += 1;
+                cr_values_sum += self.cb_channel[(self.height * i + j) as usize] as u16;
+                cr_values_amount += 1;
+
+                if j < self.width - 1 {
+                    cb_values_sum += self.cb_channel[(self.height * i + j + 1) as usize] as u16;
+                    cb_values_amount += 1;
+                    cr_values_sum += self.cb_channel[(self.height * i + j + 1) as usize] as u16;
+                    cr_values_amount += 1;
+                }
+
+                if i < self.height - 1 {
+                    cb_values_sum += self.cb_channel[(self.height * (i + 1) + j) as usize] as u16;
+                    cb_values_amount += 1;
+                    cr_values_sum += self.cb_channel[(self.height * (i + 1) + j) as usize] as u16;
+                    cr_values_amount += 1;
+                }
+
+                if j < self.width - 1 && i < self.height - 1 {
+                    cb_values_sum += self.cb_channel
+                        [(self.height * (i + 1) + j + 1) as usize] as u16;
+                    cb_values_amount += 1;
+                    cr_values_sum += self.cb_channel
+                        [(self.height * (i + 1) + j + 1) as usize] as u16;
+                    cr_values_amount += 1;
+                }
+
+                // push average value of 2x2 pixel block
+                new_cb.push((cb_values_sum / cb_values_amount) as u8);
+                new_cr.push((cr_values_sum / cr_values_amount) as u8);
+            }
+        }
 
         self.cb_channel = new_cb;
         self.cr_channel = new_cr;
