@@ -8,6 +8,9 @@ const BMP_IMAGE_DATA_START_OFFSET: u64 = 10;
 const BMP_PIXEL_WIDTH_OFFSET: u64 = 18;
 const BMP_PIXEL_HEIGHT_OFFSET: u64 = 22;
 
+const Y_QUANTIZATION_TABLE: [i8; 64] = [0i8; 64];
+const CH_QUANTIZATION_TABLE: [i8; 64] = [0i8; 64];
+
 pub struct JpegImage {
     width: i32,
     height: i32,
@@ -17,6 +20,7 @@ pub struct JpegImage {
     y_dct_coeffs: Vec<i8>,
     cb_dct_coeffs: Vec<i8>,
     cr_dct_coeffs: Vec<i8>,
+    quality: f32, // [0; 1]
 }
 
 impl JpegImage {
@@ -68,6 +72,7 @@ impl JpegImage {
             y_dct_coeffs,
             cb_dct_coeffs,
             cr_dct_coeffs,
+            quality: 1.0,
         }
     }
 
@@ -156,5 +161,43 @@ impl JpegImage {
 
         self.cb_channel = new_cb;
         self.cr_channel = new_cr;
+    }
+
+    pub fn dct_and_quant(&mut self) {
+        let mut buffer: [i8; 64] = [0; 64];
+
+        // luminance dct
+        let width_iter = (0..self.width as i32).filter(|x| x % 8 == 0);
+        let height_iter = (0..self.height as i32).filter(|x| x % 8 == 0);
+
+        for row in height_iter {
+            for column in width_iter.clone() {
+                Self::block_to_buffer(&mut buffer, row, column, &mut self.y_channel);
+                // TODO
+                // perform DCT
+                // perform Quantization
+                // add buffer to dct_coeffs Vec
+            }
+        }
+
+        // chrominance dct
+    }
+
+    fn dct_shift_range(n: u8) -> i8 {
+        if n <= 127 { (n | 128u8) as i8 } else { (n & 127u8) as i8 }
+    }
+
+    fn block_to_buffer(buffer: &mut [i8; 64], row: i32, column: i32, channel: &mut Vec<u8>) {
+        for j in 0..8 {
+            for i in 0..8 {
+                let buffer_index = (8 * j + i) as usize;
+                let index = (8 * (column + j) + row + i) as usize;
+                if index < channel.len() {
+                    buffer[buffer_index] = Self::dct_shift_range(channel[index]);
+                } else {
+                    buffer[buffer_index] = 0; // Padding of zeros may not be the best approach, but it's the easiest
+                }
+            }
+        }
     }
 }

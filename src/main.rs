@@ -18,9 +18,9 @@ fn main() {
 
     jpeg_image.chrominance_downsampling();
 
-    // Discrete Cosine Transform
+    // Discrete Cosine Transform and Quantization
 
-    // Quantization
+    jpeg_image.dct_and_quant();
 
     // Run Length and Huffman Encoding
 
