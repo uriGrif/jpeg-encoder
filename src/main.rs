@@ -3,6 +3,7 @@ mod arguments;
 use arguments::Args;
 use image::JpegImage;
 mod image;
+mod bitvec;
 
 fn main() {
     // parse arguments
@@ -25,4 +26,7 @@ fn main() {
     // Run Length and Huffman Encoding
 
     // write to ouptut file
+
+    // TODO
+    // pasar toda la logica de cada paso a una funcion dentro de JpegImage
 }
