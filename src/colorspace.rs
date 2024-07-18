@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 pub type RGBValue = (u8, u8, u8);
 pub type YCbCrValue = (u8, u8, u8);
 

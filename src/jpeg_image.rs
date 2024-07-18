@@ -69,7 +69,7 @@ impl JpegImage {
             self.cr_channel.push_next(ycbcr.2);
         };
 
-        bmp_image.pixels.iterate(&mut f);
+        bmp_image.pixels.for_each_pixel(&mut f);
     }
 
     pub fn chrominance_downsampling(&mut self) {
@@ -92,29 +92,29 @@ impl JpegImage {
                 // TODO
                 // modularizar esto
 
-                cb_values_sum += *self.cb_channel.get_pixel(i, j) as u16;
+                cb_values_sum += *self.cb_channel.get_pixel(i, j).unwrap() as u16;
                 cb_values_amount += 1;
-                cr_values_sum += *self.cr_channel.get_pixel(i, j) as u16;
+                cr_values_sum += *self.cr_channel.get_pixel(i, j).unwrap() as u16;
                 cr_values_amount += 1;
 
                 if j < (self.width as usize) - 1 {
-                    cb_values_sum += *self.cb_channel.get_pixel(i, j + 1) as u16;
+                    cb_values_sum += *self.cb_channel.get_pixel(i, j + 1).unwrap() as u16;
                     cb_values_amount += 1;
-                    cr_values_sum += *self.cr_channel.get_pixel(i, j + 1) as u16;
+                    cr_values_sum += *self.cr_channel.get_pixel(i, j + 1).unwrap() as u16;
                     cr_values_amount += 1;
                 }
 
                 if i < (self.height as usize) - 1 {
-                    cb_values_sum += *self.cb_channel.get_pixel(i + 1, j) as u16;
+                    cb_values_sum += *self.cb_channel.get_pixel(i + 1, j).unwrap() as u16;
                     cb_values_amount += 1;
-                    cr_values_sum += *self.cr_channel.get_pixel(i + 1, j) as u16;
+                    cr_values_sum += *self.cr_channel.get_pixel(i + 1, j).unwrap() as u16;
                     cr_values_amount += 1;
                 }
 
                 if j < (self.width as usize) - 1 && i < (self.height as usize) - 1 {
-                    cb_values_sum += *self.cb_channel.get_pixel(i + 1, j + 1) as u16;
+                    cb_values_sum += *self.cb_channel.get_pixel(i + 1, j + 1).unwrap() as u16;
                     cb_values_amount += 1;
-                    cr_values_sum += *self.cr_channel.get_pixel(i + 1, j + 1) as u16;
+                    cr_values_sum += *self.cr_channel.get_pixel(i + 1, j + 1).unwrap() as u16;
                     cr_values_amount += 1;
                 }
 
