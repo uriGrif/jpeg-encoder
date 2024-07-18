@@ -1,9 +1,13 @@
 mod colorspace;
 mod arguments;
 use arguments::Args;
-use image::JpegImage;
-mod image;
+use jpeg_image::JpegImage;
+mod jpeg_image;
 mod bitvec;
+mod quant_tables;
+mod huffman_tables;
+mod bmp_image;
+mod pixel_matrix;
 
 fn main() {
     // parse arguments
