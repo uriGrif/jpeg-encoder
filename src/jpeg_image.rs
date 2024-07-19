@@ -6,16 +6,19 @@ use byteorder::{ ByteOrder, LittleEndian };
 use clap::builder::styling::RgbColor;
 use crate::bmp_image::{ self, BmpImage };
 use crate::colorspace::{ rgb_to_ycbcr, RGBValue, YCbCrValue };
-use crate::bitvec::BitVec;
+use crate::bit_vec::BitVec;
 use crate::pixel_matrix::PixelMatrix;
 use crate::quant_tables::*;
 use crate::huffman_tables::*;
+
+const DEFAULT_DOWNSAMPLING_RATIO: (u8, u8, u8) = (4, 2, 0);
 
 pub struct JpegImage {
     path: Option<String>,
     file: Option<File>,
     width: i32,
     height: i32,
+    chrominance_downsampling_ratio: (u8, u8, u8),
     y_channel: PixelMatrix<u8>,
     cb_channel: PixelMatrix<u8>,
     cr_channel: PixelMatrix<u8>,
@@ -25,15 +28,13 @@ pub struct JpegImage {
 }
 
 impl JpegImage {
-    pub fn create_from_bmp(bmp_path: &String) -> JpegImage {
+    pub fn from_bmp(bmp_path: &String) -> JpegImage {
         let mut bmp_image: BmpImage = BmpImage::new(bmp_path);
         bmp_image.load_pixels();
 
-        let channel_len = bmp_image.pixel_amount() as usize;
-
-        let mut y_channel = PixelMatrix::new(bmp_image.width as usize, bmp_image.height as usize);
-        let mut cb_channel = PixelMatrix::new(bmp_image.width as usize, bmp_image.height as usize);
-        let mut cr_channel = PixelMatrix::new(bmp_image.width as usize, bmp_image.height as usize);
+        let y_channel = PixelMatrix::new(bmp_image.width as usize, bmp_image.height as usize);
+        let cb_channel = PixelMatrix::new(bmp_image.width as usize, bmp_image.height as usize);
+        let cr_channel = PixelMatrix::new(bmp_image.width as usize, bmp_image.height as usize);
 
         let dct_len = ((bmp_image.width + (bmp_image.width % 8)) *
             (bmp_image.height + (bmp_image.height % 8))) as usize; // dct works in blocks of 8x8 pixels, so a padding is needed in order to make it divisible by 8
@@ -47,6 +48,7 @@ impl JpegImage {
             path: None,
             width: bmp_image.width,
             height: bmp_image.height,
+            chrominance_downsampling_ratio: DEFAULT_DOWNSAMPLING_RATIO,
             y_channel,
             cb_channel,
             cr_channel,

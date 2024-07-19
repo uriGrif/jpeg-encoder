@@ -3,7 +3,7 @@ mod arguments;
 use arguments::Args;
 use jpeg_image::JpegImage;
 mod jpeg_image;
-mod bitvec;
+use bit_vec;
 mod quant_tables;
 mod huffman_tables;
 mod bmp_image;
@@ -17,7 +17,7 @@ fn main() {
 
     // create jpeg image object from bmp file, with color space conversion to ycbcr
 
-    let mut jpeg_image: JpegImage = JpegImage::create_from_bmp(&args.image);
+    let mut jpeg_image: JpegImage = JpegImage::from_bmp(&args.image);
 
     // Chrominance Downsampling
 
