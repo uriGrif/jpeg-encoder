@@ -75,33 +75,43 @@ impl JpegImage {
         bmp_image.pixels.for_each_pixel(&mut f);
     }
 
-    pub fn chrominance_downsampling(&mut self) {
-        let block_width: usize;
-        let block_height: usize;
-        let new_channel_width: usize;
-        let new_channel_height: usize;
-
-        match self.chrominance_downsampling_ratio {
+    fn get_downsampling_block_dimensions(
+        downsampling_ratio: (u8, u8, u8),
+        block_width: &mut usize,
+        block_height: &mut usize
+    ) {
+        match downsampling_ratio {
             (4, 4, 4) => {
-                // no subsampling to be done
+                *block_width = 1;
+                *block_height = 1;
                 return;
             }
             (4, 2, 0) => {
-                block_width = 2;
-                block_height = 2;
-                new_channel_width = (self.width / 2 + (self.width % 2)) as usize;
-                new_channel_height = (self.height / 2 + (self.height % 2)) as usize;
+                *block_width = 2;
+                *block_height = 2;
             }
             (4, 2, 2) => {
-                block_width = 2;
-                block_height = 1;
-                new_channel_width = (self.width / 2 + (self.width % 2)) as usize;
-                new_channel_height = self.height as usize;
+                *block_width = 2;
+                *block_height = 1;
             }
             _ => {
                 panic!("Invalid chrominance downsampling ratio!");
             }
         }
+    }
+
+    pub fn chrominance_downsampling(&mut self) {
+        let mut block_width: usize = 1;
+        let mut block_height: usize = 1;
+
+        Self::get_downsampling_block_dimensions(
+            self.chrominance_downsampling_ratio,
+            &mut block_width,
+            &mut block_height
+        );
+
+        let new_channel_width = (self.width as usize).div_ceil(block_width);
+        let new_channel_height = (self.height as usize).div_ceil(block_height);
 
         let mut new_cb = PixelMatrix::<u8>::new(new_channel_width, new_channel_height);
         let mut new_cr = PixelMatrix::<u8>::new(new_channel_width, new_channel_height);
@@ -158,6 +168,21 @@ impl JpegImage {
         // TODO
         // - mucho codigo repetido -> ordenar
         // - procesar canales en paralelo
+
+        // se puede usar Aplicacion Parcial de funciones para que se vea mas limpio
+        // seria algo asi:
+        // let f = |dct_coeffs: &mut Vec<i8>, block_buffer: &mut Vec<u8>| {
+        //     hacer dct y quant
+        // };
+        //thread::spawn(|| {
+        //     let f_for_Y_channel = |block_buffer: &mut Vec<u8>| f(self.y_dct_coeffs);
+        // })
+        //thread::spawn(|| {
+        //     let f_for_cb_channel = |block_buffer: &mut Vec<u8>| f(self.cb_dct_coeffs);
+        // })
+        //thread::spawn(|| {
+        //     let f_for_cr_channel = |block_buffer: &mut Vec<u8>| f(self.cr_dct_coeffs);
+        // })
 
         // luminance dct
         let width_iter = (0..self.width as i32).filter(|x| x % 8 == 0);
