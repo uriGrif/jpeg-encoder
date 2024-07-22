@@ -1,5 +1,6 @@
 use std::f32::consts::{ PI, SQRT_2 };
 use std::io::Read;
+use std::thread;
 use std::{ fs::File, io::Seek };
 use std::os::windows::fs::FileExt;
 use byteorder::{ ByteOrder, LittleEndian };
@@ -75,56 +76,76 @@ impl JpegImage {
     }
 
     pub fn chrominance_downsampling(&mut self) {
-        let new_width = (self.width / 2 + (self.width % 2)) as usize;
-        let new_height = (self.height / 2 + (self.height % 2)) as usize;
+        let block_width: usize;
+        let block_height: usize;
+        let new_channel_width: usize;
+        let new_channel_height: usize;
 
-        let mut new_cb = PixelMatrix::<u8>::new(new_width, new_height);
-        let mut new_cr = PixelMatrix::<u8>::new(new_width, new_height);
-
-        let width_iter = (0..self.width as usize).filter(|x| x % 2 == 0);
-        let height_iter = (0..self.height as usize).filter(|x| x % 2 == 0);
-
-        for i in height_iter {
-            for j in width_iter.clone() {
-                let mut cb_values_amount: u16 = 0;
-                let mut cr_values_amount: u16 = 0;
-                let mut cb_values_sum: u16 = 0;
-                let mut cr_values_sum: u16 = 0;
-
-                // TODO
-                // modularizar esto
-
-                cb_values_sum += *self.cb_channel.get_pixel(i, j).unwrap() as u16;
-                cb_values_amount += 1;
-                cr_values_sum += *self.cr_channel.get_pixel(i, j).unwrap() as u16;
-                cr_values_amount += 1;
-
-                if j < (self.width as usize) - 1 {
-                    cb_values_sum += *self.cb_channel.get_pixel(i, j + 1).unwrap() as u16;
-                    cb_values_amount += 1;
-                    cr_values_sum += *self.cr_channel.get_pixel(i, j + 1).unwrap() as u16;
-                    cr_values_amount += 1;
-                }
-
-                if i < (self.height as usize) - 1 {
-                    cb_values_sum += *self.cb_channel.get_pixel(i + 1, j).unwrap() as u16;
-                    cb_values_amount += 1;
-                    cr_values_sum += *self.cr_channel.get_pixel(i + 1, j).unwrap() as u16;
-                    cr_values_amount += 1;
-                }
-
-                if j < (self.width as usize) - 1 && i < (self.height as usize) - 1 {
-                    cb_values_sum += *self.cb_channel.get_pixel(i + 1, j + 1).unwrap() as u16;
-                    cb_values_amount += 1;
-                    cr_values_sum += *self.cr_channel.get_pixel(i + 1, j + 1).unwrap() as u16;
-                    cr_values_amount += 1;
-                }
-
-                // push average value of 2x2 pixel block
-                new_cb.push_next((cb_values_sum / cb_values_amount) as u8);
-                new_cr.push_next((cr_values_sum / cr_values_amount) as u8);
+        match self.chrominance_downsampling_ratio {
+            (4, 4, 4) => {
+                // no subsampling to be done
+                return;
+            }
+            (4, 2, 0) => {
+                block_width = 2;
+                block_height = 2;
+                new_channel_width = (self.width / 2 + (self.width % 2)) as usize;
+                new_channel_height = (self.height / 2 + (self.height % 2)) as usize;
+            }
+            (4, 2, 2) => {
+                block_width = 2;
+                block_height = 1;
+                new_channel_width = (self.width / 2 + (self.width % 2)) as usize;
+                new_channel_height = self.height as usize;
+            }
+            _ => {
+                panic!("Invalid chrominance downsampling ratio!");
             }
         }
+
+        let mut new_cb = PixelMatrix::<u8>::new(new_channel_width, new_channel_height);
+        let mut new_cr = PixelMatrix::<u8>::new(new_channel_width, new_channel_height);
+
+        let mut add_average_cb = |block_buffer: &mut Vec<u8>| {
+            new_cb.push_next(
+                (block_buffer
+                    .iter()
+                    .map(|x| *x as usize)
+                    .sum::<usize>() / block_buffer.len()) as u8
+            );
+        };
+
+        let mut add_average_cr = |block_buffer: &mut Vec<u8>| {
+            new_cr.push_next(
+                (block_buffer
+                    .iter()
+                    .map(|x| *x as usize)
+                    .sum::<usize>() / block_buffer.len()) as u8
+            );
+        };
+
+        thread::scope(|s| {
+            let cb_handle = s.spawn(|| {
+                self.cb_channel.for_each_block(
+                    block_width,
+                    block_height,
+                    false,
+                    &mut add_average_cb
+                );
+            });
+
+            let cr_handle = s.spawn(|| {
+                self.cr_channel.for_each_block(
+                    block_width,
+                    block_height,
+                    false,
+                    &mut add_average_cr
+                );
+            });
+
+            _ = cb_handle.join();
+            _ = cr_handle.join();
+        });
 
         self.cb_channel = new_cb;
         self.cr_channel = new_cr;
