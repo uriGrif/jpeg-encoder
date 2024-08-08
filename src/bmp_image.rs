@@ -1,4 +1,4 @@
-use byteorder::{ ByteOrder, LittleEndian, ReadBytesExt };
+use byteorder::{ ByteOrder, LittleEndian };
 use std::fs::File;
 use std::io::{ Read, Seek, SeekFrom };
 
@@ -43,9 +43,7 @@ impl BmpImage {
         _ = file.read_exact(&mut metadata_buffer);
         height = LittleEndian::read_i32(&metadata_buffer);
 
-        let channel_len = (width * height) as usize;
-
-        let mut pixels = PixelMatrix::new(width as usize, height as usize);
+        let pixels = PixelMatrix::new(width as usize, height as usize);
 
         BmpImage {
             file: Some(file),

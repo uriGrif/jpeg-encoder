@@ -1,11 +1,7 @@
 use std::f32::consts::{ PI, SQRT_2 };
-use std::io::Read;
 use std::thread;
-use std::{ fs::File, io::Seek };
-use std::os::windows::fs::FileExt;
-use byteorder::{ ByteOrder, LittleEndian };
-use clap::builder::styling::RgbColor;
-use crate::bmp_image::{ self, BmpImage };
+use std::fs::File;
+use crate::bmp_image::BmpImage;
 use crate::colorspace::{ rgb_to_ycbcr, RGBValue, YCbCrValue };
 use crate::bit_vec::BitVec;
 use crate::pixel_matrix::PixelMatrix;
@@ -14,12 +10,18 @@ use crate::huffman_tables::*;
 
 const DEFAULT_DOWNSAMPLING_RATIO: (u8, u8, u8) = (4, 2, 0);
 
+pub enum DctAlgorithm {
+    RealDct,
+    BinDct,
+}
+
 pub struct JpegImage {
     path: Option<String>,
     file: Option<File>,
     width: i32,
     height: i32,
     chrominance_downsampling_ratio: (u8, u8, u8),
+    dct_algorithm: DctAlgorithm,
     y_channel: PixelMatrix<u8>,
     cb_channel: PixelMatrix<u8>,
     cr_channel: PixelMatrix<u8>,
@@ -50,6 +52,7 @@ impl JpegImage {
             width: bmp_image.width,
             height: bmp_image.height,
             chrominance_downsampling_ratio: DEFAULT_DOWNSAMPLING_RATIO,
+            dct_algorithm: DctAlgorithm::BinDct,
             y_channel,
             cb_channel,
             cr_channel,
@@ -116,8 +119,8 @@ impl JpegImage {
         let mut new_cb = PixelMatrix::<u8>::new(new_channel_width, new_channel_height);
         let mut new_cr = PixelMatrix::<u8>::new(new_channel_width, new_channel_height);
 
-        let mut add_average_cb = |block_buffer: &mut Vec<u8>| {
-            new_cb.push_next(
+        let add_average = |new_channel: &mut PixelMatrix<u8>, block_buffer: &mut Vec<u8>| {
+            new_channel.push_next(
                 (block_buffer
                     .iter()
                     .map(|x| *x as usize)
@@ -125,13 +128,12 @@ impl JpegImage {
             );
         };
 
+        let mut add_average_cb = |block_buffer: &mut Vec<u8>| {
+            add_average(&mut new_cb, block_buffer);
+        };
+
         let mut add_average_cr = |block_buffer: &mut Vec<u8>| {
-            new_cr.push_next(
-                (block_buffer
-                    .iter()
-                    .map(|x| *x as usize)
-                    .sum::<usize>() / block_buffer.len()) as u8
-            );
+            add_average(&mut new_cr, block_buffer);
         };
 
         thread::scope(|s| {
@@ -162,103 +164,81 @@ impl JpegImage {
     }
 
     pub fn dct_and_quant(&mut self) {
-        let mut buffer: [i8; 64] = [0; 64]; // stores a block of 8x8 pixels, with their values shifted to [-128;127]
-        let mut dct_buffer: [f32; 64] = [0.0; 64]; // stores the dct coefficients for a block
-
         // TODO
         // - mucho codigo repetido -> ordenar
         // - procesar canales en paralelo
 
-        // se puede usar Aplicacion Parcial de funciones para que se vea mas limpio
-        // seria algo asi:
-        // let f = |dct_coeffs: &mut Vec<i8>, block_buffer: &mut Vec<u8>| {
-        //     hacer dct y quant
-        // };
-        //thread::spawn(|| {
-        //     let f_for_Y_channel = |block_buffer: &mut Vec<u8>| f(self.y_dct_coeffs);
-        // })
-        //thread::spawn(|| {
-        //     let f_for_cb_channel = |block_buffer: &mut Vec<u8>| f(self.cb_dct_coeffs);
-        // })
-        //thread::spawn(|| {
-        //     let f_for_cr_channel = |block_buffer: &mut Vec<u8>| f(self.cr_dct_coeffs);
-        // })
+        let mut y_block_idx: usize = 0;
+        let mut cb_block_idx: usize = 0;
+        let mut cr_block_idx: usize = 0;
 
-        // luminance dct
-        let width_iter = (0..self.width as i32).filter(|x| x % 8 == 0);
-        let height_iter = (0..self.height as i32).filter(|x| x % 8 == 0);
-
-        for row in height_iter {
-            for column in width_iter.clone() {
-                Self::block_to_buffer(&mut buffer, row, column, &self.y_channel.pixels);
-                // perform DCT
-                Self::discrete_cosine_transform(buffer, &mut dct_buffer);
-                // perform Quantization
-                Self::quantization(&mut dct_buffer, true);
-                // add buffer to dct_coeffs Vec
-                for i in 0..64 {
-                    self.y_dct_coeffs.push(dct_buffer[i] as i8);
-                }
+        let f = |
+            dct_coeffs: &mut Vec<i8>,
+            quantization_table: [i8; 64],
+            block_idx: &mut usize,
+            block_buffer: &mut Vec<u8>
+        | {
+            // get pixels in block and push the results of the calculation to the dct_coeffs vec
+            match self.dct_algorithm {
+                DctAlgorithm::RealDct => Self::forward_real_dct(block_buffer, dct_coeffs),
+                DctAlgorithm::BinDct => Self::forward_bin_dct(block_buffer, dct_coeffs),
             }
-        }
+            // perform quantization on the dct_coeffs the where just calculated
+            Self::quantization(&mut dct_coeffs[*block_idx..*block_idx + 64], quantization_table);
+            // increment block_idx for next quantization
+            *block_idx += 64;
+        };
 
-        // chrominance dct
+        let mut f_for_y_channel = |block_buffer: &mut Vec<u8>|
+            f(&mut self.y_dct_coeffs, DEFAULT_Y_QUANTIZATION_TABLE, &mut y_block_idx, block_buffer);
 
-        let ch_width = self.width / 2 + (self.width % 2);
-        let ch_height = self.height / 2 + (self.height % 2);
+        let mut f_for_cb_channel = |block_buffer: &mut Vec<u8>|
+            f(
+                &mut self.cb_dct_coeffs,
+                DEFAULT_CH_QUANTIZATION_TABLE,
+                &mut cb_block_idx,
+                block_buffer
+            );
 
-        let width_iter = (0..ch_width).filter(|x| x % 8 == 0);
-        let height_iter = (0..ch_height).filter(|x| x % 8 == 0);
+        let mut f_for_cr_channel = |block_buffer: &mut Vec<u8>|
+            f(
+                &mut self.cr_dct_coeffs,
+                DEFAULT_CH_QUANTIZATION_TABLE,
+                &mut cr_block_idx,
+                block_buffer
+            );
 
-        for row in height_iter {
-            for column in width_iter.clone() {
-                // Blue Chrominance Channel
+        thread::scope(|s| {
+            let y_handle = s.spawn(|| {
+                self.cb_channel.for_each_block(8, 8, true, &mut f_for_y_channel);
+            });
+            let cb_handle = s.spawn(|| {
+                self.cb_channel.for_each_block(8, 8, true, &mut f_for_cb_channel);
+            });
+            let cr_handle = s.spawn(|| {
+                self.cb_channel.for_each_block(8, 8, true, &mut f_for_cr_channel);
+            });
 
-                Self::block_to_buffer(&mut buffer, row, column, &self.cb_channel.pixels);
-                // perform DCT
-                Self::discrete_cosine_transform(buffer, &mut dct_buffer);
-                // perform Quantization
-                Self::quantization(&mut dct_buffer, false);
-                // add buffer to dct_coeffs Vec
-                for i in 0..64 {
-                    self.cb_dct_coeffs.push(dct_buffer[i] as i8);
-                }
-
-                // Red Chrominance Channel
-
-                Self::block_to_buffer(&mut buffer, row, column, &self.cr_channel.pixels);
-                // perform DCT
-                Self::discrete_cosine_transform(buffer, &mut dct_buffer);
-                // perform Quantization
-                Self::quantization(&mut dct_buffer, false);
-                // add buffer to dct_coeffs Vec
-                for i in 0..64 {
-                    self.cr_dct_coeffs.push(dct_buffer[i] as i8);
-                }
-            }
-        }
+            _ = y_handle.join();
+            _ = cb_handle.join();
+            _ = cr_handle.join();
+        });
     }
 
     fn dct_shift_range(n: u8) -> i8 {
         if n <= 127 { (n | 128u8) as i8 } else { (n & 127u8) as i8 }
     }
 
-    fn block_to_buffer(buffer: &mut [i8; 64], row: i32, column: i32, channel: &Vec<u8>) {
-        for i in 0..8 {
-            for j in 0..8 {
-                let buffer_index = (8 * i + j) as usize;
-                let index = (8 * (column + i) + row + j) as usize;
-                if index < channel.len() {
-                    buffer[buffer_index] = Self::dct_shift_range(channel[index]);
-                } else {
-                    buffer[buffer_index] = 0; // Padding of zeros may not be the best approach, but it's the easiest
-                }
-            }
-        }
+    fn forward_bin_dct(block_buffer: &mut Vec<u8>, dct_coeffs: &mut Vec<i8>) {
+        // TODO hacer algoritmo y que vaya pusheando a dct_coeffs. Hacer shift_range antes de calcular
     }
 
-    fn discrete_cosine_transform(block: [i8; 64], result: &mut [f32; 64]) {
-        // this code follows the mathematical formula. Cool for understanding the process, but I guess there must be a better performant way of doing this
+    fn forward_real_dct(block_buffer: &mut Vec<u8>, dct_coeffs: &mut Vec<i8>) {
+        // this code follows the actual DCT mathematical formula.
+        // This algorithm is extremely slow due to the cosine calculation and floating point arithmetic
+
+        // TODO: hacer el shift_range antes de calcular
+
         let mut alpha_u: f32;
         let mut alpha_v: f32;
         let mut sum: f32;
@@ -279,29 +259,21 @@ impl JpegImage {
                 for x in 0..8 {
                     for y in 0..8 {
                         sum +=
-                            (block[x * 8 + y] as f32) *
+                            (block_buffer[x * 8 + y] as f32) *
                             ((((2 * x + 1) as f32) * (u as f32) * PI) / 16.0).cos() *
                             ((((2 * y + 1) as f32) * (v as f32) * PI) / 16.0).cos();
                     }
                 }
 
-                result[u * 8 + v] = 0.25 * alpha_u * alpha_v * sum;
+                // result[u * 8 + v] = 0.25 * alpha_u * alpha_v * sum;
+                // TODO: deberia hacer dct_coeffs.push(lo que ahora figura en result[...]) --> ver bien como lo pusheo por el indice
             }
         }
     }
 
-    fn quantization(buffer: &mut [f32; 64], is_luminance: bool) {
+    fn quantization(coeffs_block: &mut [i8], quantization_table: [i8; 64]) {
         for i in 0..64 {
-            buffer[i] = f32::round(
-                buffer[i] /
-                    (
-                        (if is_luminance {
-                            DEFAULT_Y_QUANTIZATION_TABLE[i]
-                        } else {
-                            DEFAULT_CH_QUANTIZATION_TABLE[i]
-                        }) as f32
-                    )
-            );
+            coeffs_block[i] /= quantization_table[i];
         }
     }
 
