@@ -252,7 +252,7 @@ impl JpegImage {
             let mut x4_2 = x4_1 + x5_1;
             let mut x5_2 = x4_1 - x5_1;
             let mut x6_2 = -x6_1 + x7_1;
-            let mut x7_2 = x7_1 - x7_1;
+            let mut x7_2 = x7_1 + x6_1;
 
             x4_2 = x4_2 - (x7_2 >> 3);
             x0_2 = x0_2 + x1_2;
@@ -263,13 +263,13 @@ impl JpegImage {
             x6_2 = x6_2 - (x5_2 >> 1);
 
             aux_buffer[i * 8 + 0] = x0_2;
-            aux_buffer[i * 8 + 1] = x1_2;
-            aux_buffer[i * 8 + 2] = x2_2;
-            aux_buffer[i * 8 + 3] = x3_2;
-            aux_buffer[i * 8 + 4] = x4_2;
+            aux_buffer[i * 8 + 4] = x1_2;
+            aux_buffer[i * 8 + 6] = x2_2;
+            aux_buffer[i * 8 + 2] = x3_2;
+            aux_buffer[i * 8 + 7] = x4_2;
             aux_buffer[i * 8 + 5] = x5_2;
-            aux_buffer[i * 8 + 6] = x6_2;
-            aux_buffer[i * 8 + 7] = x7_2;
+            aux_buffer[i * 8 + 3] = x6_2;
+            aux_buffer[i * 8 + 1] = x7_2;
         }
 
         // transform columns
@@ -302,7 +302,7 @@ impl JpegImage {
             let mut x4_2 = x4_1 + x5_1;
             let mut x5_2 = x4_1 - x5_1;
             let mut x6_2 = -x6_1 + x7_1;
-            let mut x7_2 = x7_1 - x7_1;
+            let mut x7_2 = x7_1 + x6_1;
 
             x4_2 = x4_2 - (x7_2 >> 3);
             x0_2 = x0_2 + x1_2;
@@ -313,13 +313,13 @@ impl JpegImage {
             x6_2 = x6_2 - (x5_2 >> 1);
 
             aux_buffer[0 * 8 + i] = x0_2;
-            aux_buffer[1 * 8 + i] = x1_2;
-            aux_buffer[2 * 8 + i] = x2_2;
-            aux_buffer[3 * 8 + i] = x3_2;
-            aux_buffer[4 * 8 + i] = x4_2;
+            aux_buffer[4 * 8 + i] = x1_2;
+            aux_buffer[6 * 8 + i] = x2_2;
+            aux_buffer[2 * 8 + i] = x3_2;
+            aux_buffer[7 * 8 + i] = x4_2;
             aux_buffer[5 * 8 + i] = x5_2;
-            aux_buffer[6 * 8 + i] = x6_2;
-            aux_buffer[7 * 8 + i] = x7_2;
+            aux_buffer[3 * 8 + i] = x6_2;
+            aux_buffer[1 * 8 + i] = x7_2;
         }
 
         for i in 0..64 {
@@ -473,7 +473,7 @@ mod tests {
         // there might be differences between the result and the expected output due to rounding.
         // Instead of asserting if result and expected are equal, we will see if they are "close enough"
         // this error might be even higher for the binDct implementation, since it's actually an approximation of the transform
-        let delta_error_threshold = 2; // I will supose that, in average, the numbers shouldn't differ by more than 2 from the expected value
+        let delta_error_threshold = 1;
 
         let mut average_error = 0.0;
 
