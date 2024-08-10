@@ -25,7 +25,7 @@ fn main() {
 
     // Discrete Cosine Transform and Quantization
 
-    jpeg_image.dct_and_quant();
+    jpeg_image.dct_and_quantization();
 
     // Run Length and Huffman Encoding
 
