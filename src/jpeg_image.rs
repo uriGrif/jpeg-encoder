@@ -233,14 +233,14 @@ impl JpegImage {
             let x6 = aux_buffer[i * 8 + 6];
             let x7 = aux_buffer[i * 8 + 7];
 
-            let mut x0_1 = x0 + x7;
-            let mut x1_1 = x1 + x6;
-            let mut x2_1 = x2 + x5;
-            let mut x3_1 = x3 + x4;
-            let mut x4_1 = x3 - x4;
-            let mut x5_1 = x2 - x5;
-            let mut x6_1 = x6 - x1;
             let mut x7_1 = x0 - x7;
+            let mut x0_1 = x0 - (x7_1 >> 1);
+            let mut x6_1 = x1 - x6;
+            let mut x1_1 = x1 - (x6_1 >> 1);
+            let mut x5_1 = x2 - x5;
+            let mut x2_1 = x2 - (x5_1 >> 1);
+            let mut x4_1 = x3 - x4;
+            let mut x3_1 = x3 - (x4_1 >> 1);
 
             x6_1 = ((x5_1 * 3) >> 3) + x6_1;
             x5_1 = ((x6_1 * 5) >> 3) - x5_1;
@@ -251,7 +251,7 @@ impl JpegImage {
             let mut x2_2 = x1_1 - x2_1;
             let mut x4_2 = x4_1 + x5_1;
             let mut x5_2 = x4_1 - x5_1;
-            let mut x6_2 = -x6_1 + x7_1;
+            let mut x6_2 = x7_1 - x6_1;
             let mut x7_2 = x7_1 + x6_1;
 
             x4_2 = x4_2 - (x7_2 >> 3);
@@ -283,14 +283,14 @@ impl JpegImage {
             let x6 = aux_buffer[6 * 8 + i];
             let x7 = aux_buffer[7 * 8 + i];
 
-            let mut x0_1 = x0 + x7;
-            let mut x1_1 = x1 + x6;
-            let mut x2_1 = x2 + x5;
-            let mut x3_1 = x3 + x4;
-            let mut x4_1 = x3 - x4;
-            let mut x5_1 = x2 - x5;
-            let mut x6_1 = x6 - x1;
             let mut x7_1 = x0 - x7;
+            let mut x0_1 = x0 - (x7_1 >> 1);
+            let mut x6_1 = x1 - x6;
+            let mut x1_1 = x1 - (x6_1 >> 1);
+            let mut x5_1 = x2 - x5;
+            let mut x2_1 = x2 - (x5_1 >> 1);
+            let mut x4_1 = x3 - x4;
+            let mut x3_1 = x3 - (x4_1 >> 1);
 
             x6_1 = ((x5_1 * 3) >> 3) + x6_1;
             x5_1 = ((x6_1 * 5) >> 3) - x5_1;
@@ -301,7 +301,7 @@ impl JpegImage {
             let mut x2_2 = x1_1 - x2_1;
             let mut x4_2 = x4_1 + x5_1;
             let mut x5_2 = x4_1 - x5_1;
-            let mut x6_2 = -x6_1 + x7_1;
+            let mut x6_2 = x7_1 - x6_1;
             let mut x7_2 = x7_1 + x6_1;
 
             x4_2 = x4_2 - (x7_2 >> 3);
