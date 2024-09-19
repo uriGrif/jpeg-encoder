@@ -31,6 +31,8 @@ pub struct JpegImage {
 }
 
 impl JpegImage {
+    // TODO: generate jpeg from any random file, just based on its bytes
+
     pub fn from_bmp(bmp_path: &String) -> JpegImage {
         let mut bmp_image: BmpImage = BmpImage::new(bmp_path);
         bmp_image.load_pixels();
@@ -78,24 +80,16 @@ impl JpegImage {
         bmp_image.pixels.for_each_pixel(&mut f);
     }
 
-    fn get_downsampling_block_dimensions(
-        downsampling_ratio: (u8, u8, u8),
-        block_width: &mut usize,
-        block_height: &mut usize
-    ) {
+    fn get_downsampling_block_dimensions(downsampling_ratio: (u8, u8, u8)) -> (usize, usize) {
         match downsampling_ratio {
             (4, 4, 4) => {
-                *block_width = 1;
-                *block_height = 1;
-                return;
+                return (1, 1);
             }
             (4, 2, 0) => {
-                *block_width = 2;
-                *block_height = 2;
+                return (2, 2);
             }
             (4, 2, 2) => {
-                *block_width = 2;
-                *block_height = 1;
+                return (2, 1);
             }
             _ => {
                 panic!("Invalid chrominance downsampling ratio!");
@@ -104,13 +98,8 @@ impl JpegImage {
     }
 
     pub fn chrominance_downsampling(&mut self) {
-        let mut block_width: usize = 1;
-        let mut block_height: usize = 1;
-
-        Self::get_downsampling_block_dimensions(
-            self.chrominance_downsampling_ratio,
-            &mut block_width,
-            &mut block_height
+        let (block_width, block_height): (usize, usize) = Self::get_downsampling_block_dimensions(
+            self.chrominance_downsampling_ratio
         );
 
         let new_channel_width = (self.width as usize).div_ceil(block_width);
@@ -188,13 +177,13 @@ impl JpegImage {
 
         thread::scope(|s| {
             let y_handle = s.spawn(|| {
-                self.cb_channel.for_each_block(8, 8, true, &mut f_for_y_channel);
+                self.y_channel.for_each_block(8, 8, true, &mut f_for_y_channel);
             });
             let cb_handle = s.spawn(|| {
                 self.cb_channel.for_each_block(8, 8, true, &mut f_for_cb_channel);
             });
             let cr_handle = s.spawn(|| {
-                self.cb_channel.for_each_block(8, 8, true, &mut f_for_cr_channel);
+                self.cr_channel.for_each_block(8, 8, true, &mut f_for_cr_channel);
             });
 
             _ = y_handle.join();
@@ -212,8 +201,8 @@ impl JpegImage {
         quantization_table: [i32; 64],
         coeffs_buffer: &mut Vec<i8>
     ) {
-        // Version C of the BinDCT in this paper:
-        // https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=a16a78322dfdfc8c6ad1a38ba05caafe97a56254
+        // Version "all-lifting binDCT-C" of this paper:
+        // https://thanglong.ece.jhu.edu/Tran/Pub/intDCT.pdf
         let mut aux_buffer: [i32; 64] = [0; 64];
         block_buffer
             .iter()
@@ -374,17 +363,7 @@ impl JpegImage {
         }
     }
 
-    fn quantization(
-        coeffs_buffer: &[f32; 64],
-        quantization_table: [i8; 64],
-        dct_coeffs: &mut Vec<i8>
-    ) {
-        for i in 0..64 {
-            dct_coeffs.push((coeffs_buffer[i] / (quantization_table[i] as f32)) as i8);
-        }
-    }
-
-    fn get_encoded_data(&self) -> BitVec {
+    fn get_entropy_encoded_data(&self) -> BitVec {
         let mut bits: BitVec = BitVec::new();
 
         // Run length encode
@@ -403,19 +382,6 @@ impl JpegImage {
 
     fn huffman_encode(runlength: &Vec<i8>, bits: &mut BitVec) {
         // recordar que cada 4 fin de bloques, cambia el tipo de canal y de tabla
-    }
-
-    fn get_huffman_codes(table: &mut HuffmanTable) {
-        let mut code: u32 = 0;
-
-        for i in 0..16 {
-            for j in i..table.offsets[(i as usize) + 1] {
-                table.codes[j as usize] = code;
-                code += 1;
-            }
-            code <<= 1;
-        }
-        table.set = true;
     }
 }
 

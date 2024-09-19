@@ -1,8 +1,40 @@
 pub struct HuffmanTable<'a> {
-    pub offsets: [u8; 16],
+    pub offsets: [u8; 16], // these are the starting indexes in the symbols or codes arrays of codes that are i+1 bits long
     pub symbols: &'a [u8],
+    // for DC coeffs: these are the length in bits of diff = DC - previousDC
+    // for AC coeffs: these are amount of previous zeros (run length - 4 bits) concatenated (a|b) with the length in bits of the AC coeff (4 bits)
     pub codes: &'a mut [u32],
     pub set: bool,
+}
+
+impl<'a> HuffmanTable<'a> {
+    pub fn generate_codes(&mut self) {
+        let mut code: u32 = 0;
+
+        for i in 0..16 {
+            for j in self.offsets[i]..self.offsets[i + 1] {
+                self.codes[j as usize] = code;
+                code += 1;
+            }
+            code <<= 1;
+        }
+        self.set = true;
+    }
+
+    pub fn get_code(&self, symbol: u8) -> Option<(u32, u8)> {
+        let mut code: u32 = 0;
+        let mut code_length: u8 = 0;
+        for i in 0..16 {
+            for j in self.offsets[i]..self.offsets[i + 1] {
+                if symbol == self.symbols[j as usize] {
+                    code = self.codes[j as usize];
+                    code_length = (i as u8) + 1;
+                    return Some((code, code_length));
+                }
+            }
+        }
+        return None;
+    }
 }
 
 pub static mut Y_DC_HUFFMAN_TABLE: HuffmanTable = HuffmanTable {

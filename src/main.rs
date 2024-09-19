@@ -30,7 +30,4 @@ fn main() {
     // Run Length and Huffman Encoding
 
     // write to ouptut file
-
-    // TODO
-    // pasar toda la logica de cada paso a una funcion dentro de JpegImage
 }
