@@ -1,7 +1,7 @@
 pub struct HuffmanTable<'a> {
     pub offsets: [u8; 16], // these are the starting indexes in the symbols or codes arrays of codes that are i+1 bits long
     pub symbols: &'a [u8],
-    // for DC coeffs: these are the length in bits of diff = DC - previousDC
+    // for DC coeffs: these are the length in bits of diff (= DC - previousDC)
     // for AC coeffs: these are amount of previous zeros (run length - 4 bits) concatenated (a|b) with the length in bits of the AC coeff (4 bits)
     pub codes: &'a mut [u32],
     pub set: bool,

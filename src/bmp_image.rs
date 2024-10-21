@@ -43,7 +43,7 @@ impl BmpImage {
         _ = file.read_exact(&mut metadata_buffer);
         height = LittleEndian::read_i32(&metadata_buffer);
 
-        let pixels = PixelMatrix::new(width as usize, height as usize);
+        let pixels = PixelMatrix::new_with_default(width as usize, height as usize);
 
         BmpImage {
             file: Some(file),
@@ -65,8 +65,6 @@ impl BmpImage {
 
         // the file image data in bmp files goes left to right, bottom to top
         // here, it will be stored left to right, top to bottom
-
-        self.pixels.initialize_pixels((self.width * self.height) as usize);
 
         for row in (0..self.height as usize).rev() {
             for col in 0..self.width as usize {

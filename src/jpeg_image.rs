@@ -4,7 +4,7 @@ use std::fs::File;
 use crate::bmp_image::BmpImage;
 use crate::colorspace::{ rgb_to_ycbcr, RGBValue, YCbCrValue };
 use crate::bit_vec::BitVec;
-use crate::pixel_matrix::PixelMatrix;
+use crate::pixel_matrix::{ PixelMatrix, PixelMatrixBlockIterator };
 use crate::quant_tables::*;
 use crate::huffman_tables::*;
 
@@ -25,36 +25,59 @@ pub struct JpegImage {
     y_channel: PixelMatrix<u8>,
     cb_channel: PixelMatrix<u8>,
     cr_channel: PixelMatrix<u8>,
-    y_dct_coeffs: Vec<i8>,
-    cb_dct_coeffs: Vec<i8>,
-    cr_dct_coeffs: Vec<i8>,
+    y_dct_coeffs: PixelMatrix<i8>,
+    cb_dct_coeffs: PixelMatrix<i8>,
+    cr_dct_coeffs: PixelMatrix<i8>,
 }
 
 impl JpegImage {
     // TODO: generate jpeg from any random file, just based on its bytes
 
-    pub fn from_bmp(bmp_path: &String) -> JpegImage {
-        let mut bmp_image: BmpImage = BmpImage::new(bmp_path);
-        bmp_image.load_pixels();
+    pub fn new(
+        path: Option<String>,
+        file: Option<File>,
+        width: i32,
+        height: i32,
+        chrominance_downsampling_ratio: (u8, u8, u8),
+        dct_algorithm: DctAlgorithm
+    ) -> JpegImage {
+        // initialize channels matrixes
+        let y_channel = PixelMatrix::new(width as usize, height as usize);
+        let cb_channel = PixelMatrix::new(width as usize, height as usize);
+        let cr_channel = PixelMatrix::new(width as usize, height as usize);
 
-        let y_channel = PixelMatrix::new(bmp_image.width as usize, bmp_image.height as usize);
-        let cb_channel = PixelMatrix::new(bmp_image.width as usize, bmp_image.height as usize);
-        let cr_channel = PixelMatrix::new(bmp_image.width as usize, bmp_image.height as usize);
+        // initialize dct coefficients matrixes
+        let (horizontal_downsampling, vertical_downsampling): (
+            usize,
+            usize,
+        ) = Self::get_downsampling_factor(DEFAULT_DOWNSAMPLING_RATIO);
 
-        let dct_len = ((bmp_image.width + (bmp_image.width % 8)) *
-            (bmp_image.height + (bmp_image.height % 8))) as usize; // dct works in blocks of 8x8 pixels, so a padding is needed in order to make it divisible by 8
+        let padded_width = (width + (width % 8)) as usize; // account for padding, as dct works in 8x8 blocks
+        let padded_height = (height + (height % 8)) as usize;
 
-        let y_dct_coeffs: Vec<i8> = Vec::<i8>::with_capacity(dct_len);
-        let cb_dct_coeffs: Vec<i8> = Vec::<i8>::with_capacity(dct_len / 2); // smaller, because these channels will later be downsampled
-        let cr_dct_coeffs: Vec<i8> = Vec::<i8>::with_capacity(dct_len / 2);
+        let downsampled_width = padded_width / horizontal_downsampling;
+        let downsampled_height = padded_height / vertical_downsampling;
 
-        let mut image: JpegImage = JpegImage {
-            file: None,
-            path: None,
-            width: bmp_image.width,
-            height: bmp_image.height,
-            chrominance_downsampling_ratio: DEFAULT_DOWNSAMPLING_RATIO,
-            dct_algorithm: DctAlgorithm::BinDct,
+        let y_dct_coeffs: PixelMatrix<i8> = PixelMatrix::<i8>::new_with_default(
+            padded_width,
+            padded_height
+        );
+        let mut cb_dct_coeffs: PixelMatrix<i8> = PixelMatrix::<i8>::new_with_default(
+            downsampled_width,
+            downsampled_height
+        );
+        let cr_dct_coeffs: PixelMatrix<i8> = PixelMatrix::<i8>::new_with_default(
+            downsampled_width,
+            downsampled_height
+        );
+
+        let image: JpegImage = JpegImage {
+            file,
+            path,
+            width: width,
+            height: height,
+            chrominance_downsampling_ratio,
+            dct_algorithm,
             y_channel,
             cb_channel,
             cr_channel,
@@ -62,6 +85,22 @@ impl JpegImage {
             cb_dct_coeffs,
             cr_dct_coeffs,
         };
+
+        image
+    }
+
+    pub fn from_bmp(bmp_path: &String) -> JpegImage {
+        let mut bmp_image: BmpImage = BmpImage::new(bmp_path);
+        bmp_image.load_pixels();
+
+        let mut image = JpegImage::new(
+            None,
+            None,
+            bmp_image.width,
+            bmp_image.height,
+            DEFAULT_DOWNSAMPLING_RATIO,
+            DctAlgorithm::BinDct
+        );
 
         image.load_bmp_rgb_to_jpeg_ycbcr(bmp_image);
 
@@ -80,7 +119,8 @@ impl JpegImage {
         bmp_image.pixels.for_each_pixel(&mut f);
     }
 
-    fn get_downsampling_block_dimensions(downsampling_ratio: (u8, u8, u8)) -> (usize, usize) {
+    fn get_downsampling_factor(downsampling_ratio: (u8, u8, u8)) -> (usize, usize) {
+        // returns the horizontal and vertical factors by which the chrominance channels must be downsampled
         match downsampling_ratio {
             (4, 4, 4) => {
                 return (1, 1);
@@ -98,12 +138,17 @@ impl JpegImage {
     }
 
     pub fn chrominance_downsampling(&mut self) {
-        let (block_width, block_height): (usize, usize) = Self::get_downsampling_block_dimensions(
-            self.chrominance_downsampling_ratio
-        );
+        let (horizontal_downsampling, vertical_downsampling): (
+            usize,
+            usize,
+        ) = Self::get_downsampling_factor(self.chrominance_downsampling_ratio);
 
-        let new_channel_width = (self.width as usize).div_ceil(block_width);
-        let new_channel_height = (self.height as usize).div_ceil(block_height);
+        if horizontal_downsampling == 1 && vertical_downsampling == 1 {
+            return;
+        }
+
+        let new_channel_width = (self.width as usize).div_ceil(horizontal_downsampling);
+        let new_channel_height = (self.height as usize).div_ceil(vertical_downsampling);
 
         let mut new_cb = PixelMatrix::<u8>::new(new_channel_width, new_channel_height);
         let mut new_cr = PixelMatrix::<u8>::new(new_channel_width, new_channel_height);
@@ -127,21 +172,15 @@ impl JpegImage {
 
         thread::scope(|s| {
             let cb_handle = s.spawn(|| {
-                self.cb_channel.for_each_block(
-                    block_width,
-                    block_height,
-                    false,
-                    &mut add_average_cb
-                );
+                self.cb_channel
+                    .get_block_iterator(horizontal_downsampling, vertical_downsampling, false)
+                    .for_each_block(&mut add_average_cb);
             });
 
             let cr_handle = s.spawn(|| {
-                self.cr_channel.for_each_block(
-                    block_width,
-                    block_height,
-                    false,
-                    &mut add_average_cr
-                );
+                self.cr_channel
+                    .get_block_iterator(horizontal_downsampling, vertical_downsampling, false)
+                    .for_each_block(&mut add_average_cr);
             });
 
             _ = cb_handle.join();
@@ -159,31 +198,41 @@ impl JpegImage {
         };
 
         let f = |
-            final_dct_coeffs: &mut Vec<i8>,
+            block_buffer: &mut Vec<u8>,
             quantization_table: [i32; 64],
-            block_buffer: &mut Vec<u8>
+            dct_coeffs_iterator: &mut PixelMatrixBlockIterator<i8>
         | {
-            dct_algorithm(block_buffer, quantization_table, final_dct_coeffs)
+            dct_algorithm(block_buffer, quantization_table, dct_coeffs_iterator)
         };
-
-        let mut f_for_y_channel = |block_buffer: &mut Vec<u8>|
-            f(&mut self.y_dct_coeffs, DEFAULT_Y_QUANTIZATION_TABLE, block_buffer);
-
-        let mut f_for_cb_channel = |block_buffer: &mut Vec<u8>|
-            f(&mut self.cb_dct_coeffs, DEFAULT_CH_QUANTIZATION_TABLE, block_buffer);
-
-        let mut f_for_cr_channel = |block_buffer: &mut Vec<u8>|
-            f(&mut self.cr_dct_coeffs, DEFAULT_CH_QUANTIZATION_TABLE, block_buffer);
 
         thread::scope(|s| {
             let y_handle = s.spawn(|| {
-                self.y_channel.for_each_block(8, 8, true, &mut f_for_y_channel);
+                // self.y_channel.get_block_iterator(8, 8, true).for_each_block(&mut f_for_y_channel);
+                let mut channel_iterator = self.y_channel.get_block_iterator(8, 8, true);
+                let mut coeffs_block_iterator = self.y_dct_coeffs.get_block_iterator(8, 8, true);
+                channel_iterator.for_each_block(
+                    &mut (|block_buffer: &mut Vec<u8>|
+                        f(block_buffer, DEFAULT_Y_QUANTIZATION_TABLE, &mut coeffs_block_iterator))
+                );
             });
+
             let cb_handle = s.spawn(|| {
-                self.cb_channel.for_each_block(8, 8, true, &mut f_for_cb_channel);
+                // self.y_channel.get_block_iterator(8, 8, true).for_each_block(&mut f_for_y_channel);
+                let mut channel_iterator = self.cb_channel.get_block_iterator(8, 8, true);
+                let mut coeffs_block_iterator = self.cb_dct_coeffs.get_block_iterator(8, 8, true);
+                channel_iterator.for_each_block(
+                    &mut (|block_buffer: &mut Vec<u8>|
+                        f(block_buffer, DEFAULT_Y_QUANTIZATION_TABLE, &mut coeffs_block_iterator))
+                );
             });
             let cr_handle = s.spawn(|| {
-                self.cr_channel.for_each_block(8, 8, true, &mut f_for_cr_channel);
+                // self.y_channel.get_block_iterator(8, 8, true).for_each_block(&mut f_for_y_channel);
+                let mut channel_iterator = self.cr_channel.get_block_iterator(8, 8, true);
+                let mut coeffs_block_iterator = self.cr_dct_coeffs.get_block_iterator(8, 8, true);
+                channel_iterator.for_each_block(
+                    &mut (|block_buffer: &mut Vec<u8>|
+                        f(block_buffer, DEFAULT_Y_QUANTIZATION_TABLE, &mut coeffs_block_iterator))
+                );
             });
 
             _ = y_handle.join();
@@ -199,7 +248,7 @@ impl JpegImage {
     fn forward_bin_dct_and_quant(
         block_buffer: &mut Vec<u8>,
         quantization_table: [i32; 64],
-        coeffs_buffer: &mut Vec<i8>
+        coeffs_block_iterator: &mut PixelMatrixBlockIterator<i8>
     ) {
         // Version "all-lifting binDCT-C" of this paper:
         // https://thanglong.ece.jhu.edu/Tran/Pub/intDCT.pdf
@@ -312,14 +361,14 @@ impl JpegImage {
         }
 
         for i in 0..64 {
-            coeffs_buffer.push((aux_buffer[i] / quantization_table[i]) as i8);
+            coeffs_block_iterator.set_next_pixel((aux_buffer[i] / quantization_table[i]) as i8);
         }
     }
 
     fn forward_real_dct_and_quant(
         block_buffer: &mut Vec<u8>,
         quantization_table: [i32; 64],
-        coeffs_buffer: &mut Vec<i8>
+        coeffs_block_iterator: &mut PixelMatrixBlockIterator<i8>
     ) {
         // This code follows the actual DCT mathematical formula.
         // This algorithm is extremely slow due to the cosine calculation and floating point arithmetic
@@ -354,7 +403,7 @@ impl JpegImage {
                     }
                 }
 
-                coeffs_buffer.push(
+                coeffs_block_iterator.set_next_pixel(
                     ((0.25 * alpha_u * alpha_v * sum) /
                         (quantization_table[quant_idx] as f32)) as i8
                 );
@@ -365,6 +414,21 @@ impl JpegImage {
 
     fn get_entropy_encoded_data(&self) -> BitVec {
         let mut bits: BitVec = BitVec::new();
+
+        let (horizontal_downsampling, vertical_downsampling): (
+            usize,
+            usize,
+        ) = Self::get_downsampling_factor(self.chrominance_downsampling_ratio);
+
+        let mut block_buffer: Vec<i8> = Vec::new();
+
+        for block_idx in 0..100 {
+            // luminance blocks
+
+            // blue chrominance block
+
+            // red chrominance block
+        }
 
         // Run length encode
 
@@ -382,6 +446,7 @@ impl JpegImage {
 
     fn huffman_encode(runlength: &Vec<i8>, bits: &mut BitVec) {
         // recordar que cada 4 fin de bloques, cambia el tipo de canal y de tabla
+
     }
 }
 
@@ -391,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_real_dct_and_quant() {
-        let mut result: Vec<i8> = Vec::<i8>::with_capacity(64);
+        let mut result = PixelMatrix::<i8>::new_with_default(8, 8);
 
         // example taken from wikipedia JPEG article, DCT section
         #[rustfmt::skip]
@@ -406,20 +471,24 @@ mod tests {
 
         let mut average_error = 0.0;
 
+        let mut block_iterator = result.get_block_iterator(8, 8, true);
+
         JpegImage::forward_real_dct_and_quant(
             &mut input_block,
             DEFAULT_Y_QUANTIZATION_TABLE,
-            &mut result
+            &mut block_iterator
         );
 
+        block_iterator.reset();
+
         for i in 0..64 {
-            let error: f64 = (result[i] - expected[i]).abs() as f64;
+            let error: f64 = (block_iterator.get_next_pixel().unwrap() - expected[i]).abs() as f64;
             average_error += error;
         }
 
         average_error /= 64.0;
 
-        println!("result: {:?}", result);
+        println!("result: {:?}", result.pixels);
         println!("expected: {:?}", expected);
         println!("average error: {}", average_error);
 
@@ -428,7 +497,7 @@ mod tests {
 
     #[test]
     fn test_bin_dct_and_quant() {
-        let mut result: Vec<i8> = Vec::<i8>::with_capacity(64);
+        let mut result = PixelMatrix::<i8>::new_with_default(8, 8);
 
         // example taken from wikipedia JPEG article, DCT section
         #[rustfmt::skip]
@@ -443,20 +512,24 @@ mod tests {
 
         let mut average_error = 0.0;
 
+        let mut block_iterator = result.get_block_iterator(8, 8, true);
+
         JpegImage::forward_bin_dct_and_quant(
             &mut input_block,
             DEFAULT_Y_QUANTIZATION_TABLE,
-            &mut result
+            &mut block_iterator
         );
 
+        block_iterator.reset();
+
         for i in 0..64 {
-            let error: f64 = (result[i] - expected[i]).abs() as f64;
+            let error: f64 = (block_iterator.get_next_pixel().unwrap() - expected[i]).abs() as f64;
             average_error += error;
         }
 
         average_error /= 64.0;
 
-        println!("result: {:?}", result);
+        println!("result: {:?}", result.pixels);
         println!("expected: {:?}", expected);
         println!("average error: {}", average_error);
 
