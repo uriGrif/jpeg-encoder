@@ -1,3 +1,10 @@
+pub enum HuffmanTableType {
+    YDC,
+    CHDC,
+    YAC,
+    CHAC,
+}
+
 pub struct HuffmanTable<'a> {
     pub offsets: [u8; 16], // these are the starting indexes in the symbols or codes arrays of codes that are i+1 bits long
     pub symbols: &'a [u8],
@@ -35,6 +42,21 @@ impl<'a> HuffmanTable<'a> {
         }
         return None;
     }
+}
+
+pub fn generate_codes(offsets: &[u8], codes_amount: usize) -> Vec<u32> {
+    let mut code: u32 = 0;
+
+    let mut codes = vec![0;codes_amount];
+
+    for i in 0..16 {
+        for j in offsets[i]..offsets[i + 1] {
+            codes[j as usize] = code;
+            code += 1;
+        }
+        code <<= 1;
+    }
+    codes
 }
 
 pub static mut Y_DC_HUFFMAN_TABLE: HuffmanTable = HuffmanTable {
@@ -88,3 +110,39 @@ pub static mut CH_AC_HUFFMAN_TABLE: HuffmanTable = HuffmanTable {
     codes: &mut [0; 176],
     set: false,
 };
+
+pub const ZIG_ZAG_MAP: [usize; 64] = [
+    0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40, 48, 41, 34, 27, 20,
+    13, 6, 7, 14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51, 58, 59,
+    52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63,
+];
+
+// these functions are workarounds for having the tables as global variables, while also being able to initialize them
+// I looked into OnceCell and lazy_static, but couldn't get them to work
+pub fn initialize_huffman_tables() {
+    unsafe {
+        if !Y_DC_HUFFMAN_TABLE.set {
+            Y_DC_HUFFMAN_TABLE.generate_codes();
+        }
+        if !CH_DC_HUFFMAN_TABLE.set {
+            CH_DC_HUFFMAN_TABLE.generate_codes();
+        }
+        if !Y_AC_HUFFMAN_TABLE.set {
+            Y_AC_HUFFMAN_TABLE.generate_codes();
+        }
+        if !CH_AC_HUFFMAN_TABLE.set {
+            CH_AC_HUFFMAN_TABLE.generate_codes();
+        }
+    }
+}
+
+pub fn get_huffman_table(table_type: HuffmanTableType) -> &'static HuffmanTable<'static> {
+    unsafe {
+        match table_type {
+            HuffmanTableType::YDC => &Y_DC_HUFFMAN_TABLE,
+            HuffmanTableType::CHDC => &CH_DC_HUFFMAN_TABLE,
+            HuffmanTableType::YAC => &Y_AC_HUFFMAN_TABLE,
+            HuffmanTableType::CHAC => &CH_AC_HUFFMAN_TABLE,
+        }
+    }
+}

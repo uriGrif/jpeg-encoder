@@ -1,9 +1,13 @@
+use std::cell::RefCell;
 use std::f32::consts::{ PI, SQRT_2 };
 use std::thread;
 use std::fs::File;
+use bitvec::order::Msb0;
+use bitvec::ptr::write_bits;
+use bitvec::vec::BitVec;
+use bitvec::view::BitView;
 use crate::bmp_image::BmpImage;
 use crate::colorspace::{ rgb_to_ycbcr, RGBValue, YCbCrValue };
-use crate::bit_vec::BitVec;
 use crate::pixel_matrix::{ PixelMatrix, PixelMatrixBlockIterator };
 use crate::quant_tables::*;
 use crate::huffman_tables::*;
@@ -13,6 +17,11 @@ const DEFAULT_DOWNSAMPLING_RATIO: (u8, u8, u8) = (4, 2, 0);
 pub enum DctAlgorithm {
     RealDct,
     BinDct,
+}
+
+struct RunLength {
+    symbol: u8,
+    amplitude: i16, // coefficient
 }
 
 pub struct JpegImage {
@@ -25,13 +34,13 @@ pub struct JpegImage {
     y_channel: PixelMatrix<u8>,
     cb_channel: PixelMatrix<u8>,
     cr_channel: PixelMatrix<u8>,
-    y_dct_coeffs: PixelMatrix<i8>,
-    cb_dct_coeffs: PixelMatrix<i8>,
-    cr_dct_coeffs: PixelMatrix<i8>,
+    y_dct_coeffs: PixelMatrix<i16>,
+    cb_dct_coeffs: PixelMatrix<i16>,
+    cr_dct_coeffs: PixelMatrix<i16>,
 }
 
 impl JpegImage {
-    // TODO: generate jpeg from any random file, just based on its bytes
+    // TODO: separar los procesos en sus propios archivos (dsps se pueden poner los procesos inversos en c/u)
 
     pub fn new(
         path: Option<String>,
@@ -58,15 +67,15 @@ impl JpegImage {
         let downsampled_width = padded_width / horizontal_downsampling;
         let downsampled_height = padded_height / vertical_downsampling;
 
-        let y_dct_coeffs: PixelMatrix<i8> = PixelMatrix::<i8>::new_with_default(
+        let y_dct_coeffs: PixelMatrix<i16> = PixelMatrix::<i16>::new_with_default(
             padded_width,
             padded_height
         );
-        let mut cb_dct_coeffs: PixelMatrix<i8> = PixelMatrix::<i8>::new_with_default(
+        let mut cb_dct_coeffs: PixelMatrix<i16> = PixelMatrix::<i16>::new_with_default(
             downsampled_width,
             downsampled_height
         );
-        let cr_dct_coeffs: PixelMatrix<i8> = PixelMatrix::<i8>::new_with_default(
+        let cr_dct_coeffs: PixelMatrix<i16> = PixelMatrix::<i16>::new_with_default(
             downsampled_width,
             downsampled_height
         );
@@ -200,14 +209,13 @@ impl JpegImage {
         let f = |
             block_buffer: &mut Vec<u8>,
             quantization_table: [i32; 64],
-            dct_coeffs_iterator: &mut PixelMatrixBlockIterator<i8>
+            dct_coeffs_iterator: &mut PixelMatrixBlockIterator<i16>
         | {
             dct_algorithm(block_buffer, quantization_table, dct_coeffs_iterator)
         };
 
         thread::scope(|s| {
             let y_handle = s.spawn(|| {
-                // self.y_channel.get_block_iterator(8, 8, true).for_each_block(&mut f_for_y_channel);
                 let mut channel_iterator = self.y_channel.get_block_iterator(8, 8, true);
                 let mut coeffs_block_iterator = self.y_dct_coeffs.get_block_iterator(8, 8, true);
                 channel_iterator.for_each_block(
@@ -217,21 +225,20 @@ impl JpegImage {
             });
 
             let cb_handle = s.spawn(|| {
-                // self.y_channel.get_block_iterator(8, 8, true).for_each_block(&mut f_for_y_channel);
                 let mut channel_iterator = self.cb_channel.get_block_iterator(8, 8, true);
                 let mut coeffs_block_iterator = self.cb_dct_coeffs.get_block_iterator(8, 8, true);
                 channel_iterator.for_each_block(
                     &mut (|block_buffer: &mut Vec<u8>|
-                        f(block_buffer, DEFAULT_Y_QUANTIZATION_TABLE, &mut coeffs_block_iterator))
+                        f(block_buffer, DEFAULT_CH_QUANTIZATION_TABLE, &mut coeffs_block_iterator))
                 );
             });
+
             let cr_handle = s.spawn(|| {
-                // self.y_channel.get_block_iterator(8, 8, true).for_each_block(&mut f_for_y_channel);
                 let mut channel_iterator = self.cr_channel.get_block_iterator(8, 8, true);
                 let mut coeffs_block_iterator = self.cr_dct_coeffs.get_block_iterator(8, 8, true);
                 channel_iterator.for_each_block(
                     &mut (|block_buffer: &mut Vec<u8>|
-                        f(block_buffer, DEFAULT_Y_QUANTIZATION_TABLE, &mut coeffs_block_iterator))
+                        f(block_buffer, DEFAULT_CH_QUANTIZATION_TABLE, &mut coeffs_block_iterator))
                 );
             });
 
@@ -248,7 +255,7 @@ impl JpegImage {
     fn forward_bin_dct_and_quant(
         block_buffer: &mut Vec<u8>,
         quantization_table: [i32; 64],
-        coeffs_block_iterator: &mut PixelMatrixBlockIterator<i8>
+        coeffs_block_iterator: &mut PixelMatrixBlockIterator<i16>
     ) {
         // Version "all-lifting binDCT-C" of this paper:
         // https://thanglong.ece.jhu.edu/Tran/Pub/intDCT.pdf
@@ -361,14 +368,14 @@ impl JpegImage {
         }
 
         for i in 0..64 {
-            coeffs_block_iterator.set_next_pixel((aux_buffer[i] / quantization_table[i]) as i8);
+            coeffs_block_iterator.set_next_pixel((aux_buffer[i] / quantization_table[i]) as i16);
         }
     }
 
     fn forward_real_dct_and_quant(
         block_buffer: &mut Vec<u8>,
         quantization_table: [i32; 64],
-        coeffs_block_iterator: &mut PixelMatrixBlockIterator<i8>
+        coeffs_block_iterator: &mut PixelMatrixBlockIterator<i16>
     ) {
         // This code follows the actual DCT mathematical formula.
         // This algorithm is extremely slow due to the cosine calculation and floating point arithmetic
@@ -405,48 +412,214 @@ impl JpegImage {
 
                 coeffs_block_iterator.set_next_pixel(
                     ((0.25 * alpha_u * alpha_v * sum) /
-                        (quantization_table[quant_idx] as f32)) as i8
+                        (quantization_table[quant_idx] as f32)) as i16
                 );
                 quant_idx += 1;
             }
         }
     }
 
-    fn get_entropy_encoded_data(&self) -> BitVec {
-        let mut bits: BitVec = BitVec::new();
+    fn get_entropy_encoded_data(&mut self) -> BitVec {
+        initialize_huffman_tables();
+
+        let bits = RefCell::new(BitVec::new());
 
         let (horizontal_downsampling, vertical_downsampling): (
             usize,
             usize,
         ) = Self::get_downsampling_factor(self.chrominance_downsampling_ratio);
 
-        let mut block_buffer: Vec<i8> = Vec::new();
+        let mut y_dct_block_iterator = self.y_dct_coeffs.get_block_iterator(
+            8 * horizontal_downsampling,
+            8 * vertical_downsampling,
+            false
+        );
 
-        for block_idx in 0..100 {
-            // luminance blocks
+        let mut cb_dct_block_iterator = self.cb_dct_coeffs.get_block_iterator(8, 8, false);
 
-            // blue chrominance block
+        let mut cr_dct_block_iterator = self.cr_dct_coeffs.get_block_iterator(8, 8, false);
 
-            // red chrominance block
+        let mut run_length_result_buffer = Vec::<RunLength>::with_capacity(64);
+
+        let mut prev_dc_coeff = 0i16;
+
+        let process_single_block = RefCell::new(
+            |
+                block_buffer: &mut Vec<i16>,
+                dc_huffman_table: &HuffmanTable,
+                ac_huffman_table: &HuffmanTable
+            | {
+                run_length_result_buffer.clear();
+                JpegImage::runlength_encode(
+                    &mut prev_dc_coeff,
+                    &block_buffer,
+                    &mut run_length_result_buffer
+                );
+                JpegImage::huffman_encode(
+                    &run_length_result_buffer,
+                    &mut bits.borrow_mut(),
+                    dc_huffman_table,
+                    ac_huffman_table
+                );
+            }
+        );
+
+        // this is used to process the luminance blocks, which may be more than the chrominance blocks, due to the downsampling
+        let mut process_multiple_blocks = |block_buffer: &mut Vec<i16>| {
+            // I couldn't find a good way to avoid the memory duplication of using to_owned()
+            // without using unsafe rust or some really weird Arc<Mutex<>>
+            // while at the same time trying to keep the block_iterator interface
+            let mut new_pixel_matrix = PixelMatrix::new_from_pixels(
+                8 * horizontal_downsampling,
+                8 * vertical_downsampling,
+                block_buffer.to_owned()
+            );
+
+            new_pixel_matrix
+                .get_block_iterator(8, 8, false)
+                .for_each_block(
+                    &mut (|block_buffer: &mut Vec<i16>|
+                        process_single_block.borrow_mut()(
+                            block_buffer,
+                            get_huffman_table(HuffmanTableType::YDC),
+                            get_huffman_table(HuffmanTableType::YAC)
+                        ))
+                );
+        };
+
+        for _ in 0..cb_dct_block_iterator.get_blocks_amount() {
+            y_dct_block_iterator.for_each_block(&mut process_multiple_blocks);
+            cb_dct_block_iterator.for_each_block(
+                &mut (|block_buffer: &mut Vec<i16>|
+                    process_single_block.borrow_mut()(
+                        block_buffer,
+                        get_huffman_table(HuffmanTableType::CHDC),
+                        get_huffman_table(HuffmanTableType::CHAC)
+                    ))
+            );
+            cr_dct_block_iterator.for_each_block(
+                &mut (|block_buffer: &mut Vec<i16>|
+                    process_single_block.borrow_mut()(
+                        block_buffer,
+                        get_huffman_table(HuffmanTableType::CHDC),
+                        get_huffman_table(HuffmanTableType::CHAC)
+                    ))
+            );
         }
 
-        // Run length encode
+        return bits.into_inner();
+    }
 
-        // Huffman encode
+    fn bit_length(mut value: i16) -> u8 {
+        let mut length: u8 = 0;
+        while value > 0 {
+            value >>= 1;
+            length += 1;
+        }
+        return length;
+    }
 
-        return bits;
+    fn get_run_length_symbol(zeros_count: u8, bit_length: u8) -> u8 {
+        ((zeros_count & 0xf0) << 4) | (bit_length & 0x0f)
+    }
+
+    fn coeff_to_amplitude(value: i16, bit_length: u8) -> i16 {
+        if value < 0 { value + (1 << bit_length) - 1 } else { value }
     }
 
     fn runlength_encode(
-        y_channel: &Vec<i8>,
-        cb_channel: &Vec<i8>,
-        cr_channel: &Vec<i8>,
-        result_buffer: &Vec<i8>
-    ) {}
+        prev_dc_coeff: &mut i16,
+        dct_coeffs: &Vec<i16>,
+        result_buffer: &mut Vec<RunLength>
+    ) {
+        let dc_bit_length = Self::bit_length(dct_coeffs[0].abs());
+        if dc_bit_length > 11 {
+            panic!("DC coefficient bit length greater than 11!");
+        }
+        let dc_coeff = dct_coeffs[0] - *prev_dc_coeff;
+        // handle DC coefficient
+        result_buffer.push(RunLength {
+            symbol: Self::get_run_length_symbol(0, dc_bit_length),
+            amplitude: Self::coeff_to_amplitude(dc_coeff, dc_bit_length),
+        });
+        *prev_dc_coeff = dct_coeffs[0];
 
-    fn huffman_encode(runlength: &Vec<i8>, bits: &mut BitVec) {
+        // handle AC coefficients
+        let mut zeros_count = 0u8;
+        let mut i: usize = 1;
+        while i < 64 {
+            while i < 64 && dct_coeffs[ZIG_ZAG_MAP[i]] == 0 {
+                zeros_count += 1;
+                i += 1;
+            }
+
+            if i == 64 {
+                result_buffer.push(RunLength {
+                    symbol: 0x00, // End Of Block
+                    amplitude: 0,
+                });
+                break;
+            }
+
+            while zeros_count >= 16 {
+                result_buffer.push(RunLength {
+                    symbol: 0xf0,
+                    amplitude: 0,
+                });
+                i -= 16;
+            }
+
+            let ac_coeff = dct_coeffs[ZIG_ZAG_MAP[i]];
+            let ac_bit_length = Self::get_run_length_symbol(
+                zeros_count,
+                Self::bit_length(ac_coeff.abs())
+            );
+            if ac_bit_length > 10 {
+                panic!("AC coefficient bit length greater than 10!");
+            }
+            result_buffer.push(RunLength {
+                symbol: ac_bit_length,
+                amplitude: Self::coeff_to_amplitude(ac_coeff, dc_bit_length),
+            });
+            zeros_count = 0;
+            i += 1;
+        }
+    }
+
+    fn huffman_encode(
+        runlength: &Vec<RunLength>,
+        bitvec: &mut BitVec,
+        dc_huffman_table: &HuffmanTable,
+        ac_huffman_table: &HuffmanTable
+    ) {
         // recordar que cada 4 fin de bloques, cambia el tipo de canal y de tabla
+        for (i, r) in runlength.iter().enumerate() {
+            if i == 0 {
+                // dc coeff
+                let (code, code_length) = dc_huffman_table
+                    .get_code(r.symbol)
+                    .expect("DC Huffman Code Not Found!");
+                Self::write_bits(bitvec, code, code_length);
+                Self::write_bits(bitvec, r.amplitude as u32, r.symbol & 0x0f);
+                continue;
+            }
 
+            // ac coeffs
+            let (code, code_length) = ac_huffman_table
+                .get_code(r.symbol)
+                .expect("AC Huffman Code Not Found!");
+            Self::write_bits(bitvec, code, code_length);
+            if r.symbol != 0xf0 && r.symbol != 0x00 {
+                Self::write_bits(bitvec, r.amplitude as u32, r.symbol & 0x0f);
+            }
+        }
+    }
+
+    fn write_bits(bitvec: &mut BitVec, value: u32, length: u8) {
+        for i in (0..length).rev() {
+            let bit = (value >> i) & 1; // get the i-th bit
+            bitvec.push(bit != 0);
+        }
     }
 }
 
@@ -456,13 +629,13 @@ mod tests {
 
     #[test]
     fn test_real_dct_and_quant() {
-        let mut result = PixelMatrix::<i8>::new_with_default(8, 8);
+        let mut result = PixelMatrix::<i16>::new_with_default(8, 8);
 
         // example taken from wikipedia JPEG article, DCT section
         #[rustfmt::skip]
         let mut input_block: Vec<u8> = vec![52,55,61,66,70,61,64,73,63,59,55,90,109,85,69,72,62,59,68,113,144,104,66,73,63,58,71,122,154,106,70,69,67,61,68,104,126,88,68,70,79,65,60,70,77,68,58,75,85,71,64,59,55,61,65,83,87,79,69,68,65,76,78,94];
         #[rustfmt::skip]
-        let expected: Vec<i8> = vec![-26,-3,-6,2,2,-1,0,0,0,-2,-4,1,1,0,0,0,-3,1,5,-1,-1,0,0,0,-3,1,2,-1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+        let expected: Vec<i16> = vec![-26,-3,-6,2,2,-1,0,0,0,-2,-4,1,1,0,0,0,-3,1,5,-1,-1,0,0,0,-3,1,2,-1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
 
         // there might be differences between the result and the expected output due to rounding.
         // Instead of asserting if result and expected are equal, we will see if they are "close enough"
@@ -497,13 +670,13 @@ mod tests {
 
     #[test]
     fn test_bin_dct_and_quant() {
-        let mut result = PixelMatrix::<i8>::new_with_default(8, 8);
+        let mut result = PixelMatrix::<i16>::new_with_default(8, 8);
 
         // example taken from wikipedia JPEG article, DCT section
         #[rustfmt::skip]
         let mut input_block: Vec<u8> = vec![52,55,61,66,70,61,64,73,63,59,55,90,109,85,69,72,62,59,68,113,144,104,66,73,63,58,71,122,154,106,70,69,67,61,68,104,126,88,68,70,79,65,60,70,77,68,58,75,85,71,64,59,55,61,65,83,87,79,69,68,65,76,78,94];
         #[rustfmt::skip]
-        let expected: Vec<i8> = vec![-26,-3,-6,2,2,-1,0,0,0,-2,-4,1,1,0,0,0,-3,1,5,-1,-1,0,0,0,-3,1,2,-1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+        let expected: Vec<i16> = vec![-26,-3,-6,2,2,-1,0,0,0,-2,-4,1,1,0,0,0,-3,1,5,-1,-1,0,0,0,-3,1,2,-1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
 
         // there might be differences between the result and the expected output due to rounding.
         // Instead of asserting if result and expected are equal, we will see if they are "close enough"

@@ -3,7 +3,7 @@ mod arguments;
 use arguments::Args;
 use jpeg_image::JpegImage;
 mod jpeg_image;
-use bit_vec;
+use bitvec;
 mod quant_tables;
 mod huffman_tables;
 mod bmp_image;

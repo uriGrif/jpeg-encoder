@@ -21,12 +21,21 @@ impl<T: Default + Copy> PixelMatrix<T> {
         }
     }
 
+    pub fn new_from_pixels(width: usize, height: usize, pixels: Vec<T>) -> PixelMatrix<T> {
+        PixelMatrix {
+            width,
+            height,
+            pixels,
+        }
+    }
+
     pub fn push_next(&mut self, value: T) {
         self.pixels.push(value);
     }
 
     pub fn get_pixel(&self, row: usize, col: usize) -> Option<T> {
-        if row >= self.height || col >= self.width {
+        let idx = row * self.width + col;
+        if idx >= self.pixels.len() {
             return None;
         }
         Some(self.pixels[row * self.width + col])
