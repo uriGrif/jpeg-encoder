@@ -1,66 +1,4 @@
-pub struct PixelMatrix<T> {
-    pub width: usize,
-    pub height: usize,
-    pub pixels: Vec<T>,
-}
-
-impl<T: Default + Copy> PixelMatrix<T> {
-    pub fn new(width: usize, height: usize) -> PixelMatrix<T> {
-        PixelMatrix {
-            width,
-            height,
-            pixels: Vec::<T>::with_capacity(width * height),
-        }
-    }
-
-    pub fn new_with_default(width: usize, height: usize) -> PixelMatrix<T> {
-        PixelMatrix {
-            width,
-            height,
-            pixels: vec![Default::default(); width * height],
-        }
-    }
-
-    pub fn new_from_pixels(width: usize, height: usize, pixels: Vec<T>) -> PixelMatrix<T> {
-        PixelMatrix {
-            width,
-            height,
-            pixels,
-        }
-    }
-
-    pub fn push_next(&mut self, value: T) {
-        self.pixels.push(value);
-    }
-
-    pub fn get_pixel(&self, row: usize, col: usize) -> Option<T> {
-        let idx = row * self.width + col;
-        if idx >= self.pixels.len() {
-            return None;
-        }
-        Some(self.pixels[row * self.width + col])
-    }
-
-    pub fn set_pixel(&mut self, row: usize, col: usize, value: T) {
-        self.pixels[row * self.width + col] = value;
-    }
-
-    pub fn for_each_pixel<F>(&self, f: &mut F) where F: FnMut(&T) {
-        for p in self.pixels.as_slice() {
-            f(p);
-        }
-    }
-
-    pub fn get_block_iterator(
-        &mut self,
-        block_width: usize,
-        block_height: usize,
-        use_default_padding: bool
-    ) -> PixelMatrixBlockIterator<'_, T> {
-        PixelMatrixBlockIterator::new(self, block_width, block_height, use_default_padding)
-    }
-}
-
+use crate::pixel_matrix::pixel_matrix::PixelMatrix;
 pub struct PixelMatrixBlockIterator<'a, T> {
     pixel_matrix: &'a mut PixelMatrix<T>,
     block_width: usize,
@@ -112,7 +50,7 @@ impl<'a, T: Default + Copy> PixelMatrixBlockIterator<'a, T> {
             self.row_in_block_idx == self.block_height - 1 &&
             self.col_in_block_idx == self.block_width - 1
         {
-            self.block_idx += 1;
+            self.increment_block_idx();
         }
         self.col_in_block_idx = (self.col_in_block_idx + 1) % self.block_width;
         if self.col_in_block_idx == 0 {
@@ -149,7 +87,16 @@ impl<'a, T: Default + Copy> PixelMatrixBlockIterator<'a, T> {
         self.increment_idx();
     }
 
+    pub fn increment_block_idx(&mut self) {
+        if self.block_idx == self.get_blocks_amount() - 1 {
+            self.block_idx = 0;
+        } else {
+            self.block_idx += 1;
+        }
+    }
+
     pub fn get_block(&self, block_buffer: &mut Vec<T>) {
+        block_buffer.clear();
         let blocks_per_row = self.get_blocks_per_row();
         let block_start_i = (self.block_idx / blocks_per_row) * self.block_height;
         let block_start_j = (self.block_idx % blocks_per_row) * self.block_width;
@@ -185,7 +132,6 @@ impl<'a, T: Default + Copy> PixelMatrixBlockIterator<'a, T> {
             self.block_idx = i;
             self.row_in_block_idx = 0;
             self.col_in_block_idx = 0;
-            block_buffer.clear();
             self.block_operation(&mut block_buffer, f);
         }
     }
@@ -219,39 +165,6 @@ mod tests {
         matrix.push_next(8);
         matrix.push_next(9);
         matrix
-    }
-
-    #[test]
-    fn push_and_get() {
-        let matrix = initialize_matrix();
-        let result = matrix.get_pixel(0, 0).unwrap();
-        assert_eq!(result, 1);
-        let result = matrix.get_pixel(1, 3).unwrap();
-        assert_eq!(result, 3);
-        let result = matrix.get_pixel(2, 1).unwrap();
-        assert_eq!(result, 8);
-        let result = matrix.get_pixel(3, 2);
-        assert_eq!(result, None);
-    }
-
-    #[test]
-    fn set_pixel() {
-        let mut matrix = initialize_matrix();
-        matrix.set_pixel(2, 3, 8);
-        let result = matrix.get_pixel(2, 3).unwrap();
-        assert_eq!(result, 8);
-    }
-
-    #[test]
-    fn for_each_pixel() {
-        let matrix = initialize_matrix();
-        let mut accum = 0;
-        matrix.for_each_pixel(
-            &mut (|p: &i32| {
-                accum += *p;
-            })
-        );
-        assert_eq!(accum, 49);
     }
 
     #[test]

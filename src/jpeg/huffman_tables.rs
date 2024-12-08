@@ -6,7 +6,7 @@ pub enum HuffmanTableType {
 }
 
 pub struct HuffmanTable<'a> {
-    pub offsets: [u8; 16], // these are the starting indexes in the symbols or codes arrays of codes that are i+1 bits long
+    pub offsets: [u8; 17], // these are the starting indexes in the symbols or codes arrays of codes that are i+1 bits long
     pub symbols: &'a [u8],
     // for DC coeffs: these are the length in bits of diff (= DC - previousDC)
     // for AC coeffs: these are amount of previous zeros (run length - 4 bits) concatenated (a|b) with the length in bits of the AC coeff (4 bits)
@@ -60,21 +60,21 @@ pub fn generate_codes(offsets: &[u8], codes_amount: usize) -> Vec<u32> {
 }
 
 pub static mut Y_DC_HUFFMAN_TABLE: HuffmanTable = HuffmanTable {
-    offsets: [0, 1, 6, 7, 8, 9, 10, 11, 12, 12, 12, 12, 12, 12, 12, 12],
+    offsets: [0, 0, 1, 6, 7, 8, 9, 10, 11, 12, 12, 12, 12, 12, 12, 12, 12],
     symbols: &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b],
     codes: &mut [0; 12],
     set: false,
 };
 
 pub static mut CH_DC_HUFFMAN_TABLE: HuffmanTable = HuffmanTable {
-    offsets: [0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 12, 12, 12, 12],
+    offsets: [0, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 12, 12, 12, 12],
     symbols: &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b],
     codes: &mut [0; 12],
     set: false,
 };
 
 pub static mut Y_AC_HUFFMAN_TABLE: HuffmanTable = HuffmanTable {
-    offsets: [0, 2, 3, 6, 9, 11, 15, 18, 23, 28, 32, 36, 36, 36, 37, 162],
+    offsets: [0, 0, 2, 3, 6, 9, 11, 15, 18, 23, 28, 32, 36, 36, 36, 37, 162],
     symbols: &[
         0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21, 0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07,
         0x22, 0x71, 0x14, 0x32, 0x81, 0x91, 0xa1, 0x08, 0x23, 0x42, 0xb1, 0xc1, 0x15, 0x52, 0xd1, 0xf0,
@@ -93,7 +93,7 @@ pub static mut Y_AC_HUFFMAN_TABLE: HuffmanTable = HuffmanTable {
 };
 
 pub static mut CH_AC_HUFFMAN_TABLE: HuffmanTable = HuffmanTable {
-    offsets: [0, 2, 3, 5, 9, 13, 16, 20, 27, 32, 36, 40, 40, 41, 43, 162],
+    offsets: [0, 0, 2, 3, 5, 9, 13, 16, 20, 27, 32, 36, 40, 40, 41, 43, 162],
     symbols: &[
         0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 0x31, 0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71,
         0x13, 0x22, 0x32, 0x81, 0x08, 0x14, 0x42, 0x91, 0xa1, 0xb1, 0xc1, 0x09, 0x23, 0x33, 0x52, 0xf0,

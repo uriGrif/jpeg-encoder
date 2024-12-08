@@ -1,9 +1,8 @@
 use byteorder::{ ByteOrder, LittleEndian };
 use std::fs::File;
 use std::io::{ Read, Seek, SeekFrom };
-
-use crate::colorspace::RGBValue;
-use crate::pixel_matrix::PixelMatrix;
+use crate::pixel_matrix::pixel_matrix::PixelMatrix;
+use crate::utils::colorspace::RGBValue;
 
 const BMP_IMAGE_DATA_START_OFFSET: u64 = 10;
 const BMP_PIXEL_WIDTH_OFFSET: u64 = 18;
