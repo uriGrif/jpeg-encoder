@@ -1,13 +1,13 @@
+use bitvec::order::Msb0;
+use bitvec::vec::BitVec;
 use crate::jpeg::dct_quant::DctAlgorithm;
 use crate::pixel_matrix::pixel_matrix::PixelMatrix;
-use std::fs::File;
 use crate::jpeg::sampling::DEFAULT_DOWNSAMPLING_RATIO;
 use crate::bmp::bmp_image::BmpImage;
 use crate::utils::colorspace::{ RGBValue, YCbCrValue, rgb_to_ycbcr };
 
 pub struct JpegImage {
-    pub path: Option<String>,
-    pub file: Option<File>,
+    pub path: String,
     pub width: i32,
     pub height: i32,
     pub chrominance_downsampling_ratio: (u8, u8, u8),
@@ -18,12 +18,12 @@ pub struct JpegImage {
     pub y_dct_coeffs: PixelMatrix<i16>,
     pub cb_dct_coeffs: PixelMatrix<i16>,
     pub cr_dct_coeffs: PixelMatrix<i16>,
+    pub entropy_coded_bits: BitVec<u8, Msb0>,
 }
 
 impl JpegImage {
     pub fn new(
-        path: Option<String>,
-        file: Option<File>,
+        path: String,
         width: i32,
         height: i32,
         chrominance_downsampling_ratio: (u8, u8, u8),
@@ -60,7 +60,6 @@ impl JpegImage {
         );
 
         let image: JpegImage = JpegImage {
-            file,
             path,
             width: width,
             height: height,
@@ -72,18 +71,18 @@ impl JpegImage {
             y_dct_coeffs,
             cb_dct_coeffs,
             cr_dct_coeffs,
+            entropy_coded_bits: BitVec::new(),
         };
 
         image
     }
 
-    pub fn from_bmp(bmp_path: &String) -> JpegImage {
+    pub fn from_bmp(bmp_path: &String, jpeg_path: &String) -> JpegImage {
         let mut bmp_image: BmpImage = BmpImage::new(bmp_path);
         bmp_image.load_pixels();
 
         let mut image = JpegImage::new(
-            None,
-            None,
+            jpeg_path.clone(),
             bmp_image.width,
             bmp_image.height,
             DEFAULT_DOWNSAMPLING_RATIO,

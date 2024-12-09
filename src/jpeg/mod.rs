@@ -4,3 +4,4 @@ pub mod entropy_coding;
 pub mod quant_tables;
 pub mod sampling;
 pub mod huffman_tables;
+pub mod file;

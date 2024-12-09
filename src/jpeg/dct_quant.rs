@@ -18,7 +18,7 @@ impl JpegImage {
 
         let f = |
             block_buffer: &mut Vec<u8>,
-            quantization_table: [i32; 64],
+            quantization_table: [u8; 64],
             dct_coeffs_iterator: &mut PixelMatrixBlockIterator<i16>
         | {
             dct_algorithm(block_buffer, quantization_table, dct_coeffs_iterator)
@@ -64,7 +64,7 @@ impl JpegImage {
 
     fn forward_bin_dct_and_quant(
         block_buffer: &mut Vec<u8>,
-        quantization_table: [i32; 64],
+        quantization_table: [u8; 64],
         coeffs_block_iterator: &mut PixelMatrixBlockIterator<i16>
     ) {
         // Version "all-lifting binDCT-C" of this paper:
@@ -178,13 +178,15 @@ impl JpegImage {
         }
 
         for i in 0..64 {
-            coeffs_block_iterator.set_next_pixel((aux_buffer[i] / quantization_table[i]) as i16);
+            coeffs_block_iterator.set_next_pixel(
+                (aux_buffer[i] / (quantization_table[i] as i32)) as i16
+            );
         }
     }
 
     fn forward_real_dct_and_quant(
         block_buffer: &mut Vec<u8>,
-        quantization_table: [i32; 64],
+        quantization_table: [u8; 64],
         coeffs_block_iterator: &mut PixelMatrixBlockIterator<i16>
     ) {
         // This code follows the actual DCT mathematical formula.

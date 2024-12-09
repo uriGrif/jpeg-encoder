@@ -14,7 +14,7 @@ fn main() {
     // create jpeg image object from bmp file, with color space conversion to ycbcr
 
     println!("Loading bmp");
-    let mut jpeg_image: JpegImage = JpegImage::from_bmp(&args.image);
+    let mut jpeg_image: JpegImage = JpegImage::from_bmp(&args.image, &args.output);
 
     // Chrominance Downsampling
 
@@ -29,7 +29,9 @@ fn main() {
     // Run Length and Huffman Encoding
 
     println!("Entropy coding");
-    println!("{}", jpeg_image.get_entropy_encoded_data());
+    jpeg_image.generate_entropy_encoded_data();
 
     // write to ouptut file
+    println!("Creating file");
+    jpeg_image.generate_file().unwrap();
 }

@@ -1,6 +1,7 @@
 use crate::JpegImage;
 use crate::jpeg::huffman_tables::*;
 use std::cell::RefCell;
+use bitvec::order::Msb0;
 use bitvec::vec::BitVec;
 use crate::pixel_matrix::pixel_matrix::PixelMatrix;
 use crate::utils::bitvec_utils::write_bits;
@@ -11,10 +12,10 @@ struct RunLength {
 }
 
 impl JpegImage {
-    pub fn get_entropy_encoded_data(&mut self) -> BitVec {
+    pub fn generate_entropy_encoded_data(&mut self) {
         initialize_huffman_tables();
 
-        let bits = RefCell::new(BitVec::new());
+        // let bits = RefCell::new(BitVec::new());
 
         let (horizontal_downsampling, vertical_downsampling): (
             usize,
@@ -53,7 +54,7 @@ impl JpegImage {
                 );
                 JpegImage::huffman_encode(
                     &run_length_result_buffer,
-                    &mut bits.borrow_mut(),
+                    &mut self.entropy_coded_bits,
                     dc_huffman_table,
                     ac_huffman_table
                 );
@@ -109,8 +110,6 @@ impl JpegImage {
                     ))
             );
         }
-
-        return bits.into_inner();
     }
 
     fn bit_length(mut value: i16) -> u8 {
@@ -191,7 +190,7 @@ impl JpegImage {
 
     fn huffman_encode(
         runlength: &Vec<RunLength>,
-        bitvec: &mut BitVec,
+        bitvec: &mut BitVec<u8, Msb0>,
         dc_huffman_table: &HuffmanTable,
         ac_huffman_table: &HuffmanTable
     ) {
