@@ -52,7 +52,7 @@ impl JpegImage {
                 ((2u8 / (h as u8)) << 4) | (2u8 / (v as u8))
             };
             file.write_u8(sampling_factor)?;
-            file.write_u8(if i == 1 { 0 } else { 1 })?;
+            file.write_u8(if i == 1 { 0 } else { 1 })?; // quant table
         }
         Ok(19)
     }

@@ -40,8 +40,16 @@ impl JpegImage {
             usize,
         ) = Self::get_downsampling_factor(DEFAULT_DOWNSAMPLING_RATIO);
 
-        let padded_width = (width + 8 - (width % 8)) as usize; // account for padding, as dct works in 8x8 blocks
-        let padded_height = (height + 8 - (height % 8)) as usize;
+        let padded_width = if width % 8 == 0 {
+            width as usize
+        } else {
+            (width + 8 - (width % 8)) as usize
+        }; // account for padding, as dct works in 8x8 blocks
+        let padded_height = if height % 8 == 0 {
+            height as usize
+        } else {
+            (height + 8 - (height % 8)) as usize
+        };
 
         let downsampled_width = padded_width / horizontal_downsampling;
         let downsampled_height = padded_height / vertical_downsampling;

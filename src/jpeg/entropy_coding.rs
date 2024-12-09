@@ -172,15 +172,12 @@ impl JpegImage {
             }
 
             let ac_coeff = dct_coeffs[ZIG_ZAG_MAP[i]];
-            let ac_bit_length = Self::get_run_length_symbol(
-                zeros_count,
-                Self::bit_length(ac_coeff.abs())
-            );
+            let ac_bit_length = Self::bit_length(ac_coeff.abs());
             if ac_bit_length > 10 {
                 panic!("AC coefficient bit length greater than 10!");
             }
             result_buffer.push(RunLength {
-                symbol: ac_bit_length,
+                symbol: Self::get_run_length_symbol(zeros_count, ac_bit_length),
                 amplitude: Self::coeff_to_amplitude(ac_coeff, dc_bit_length),
             });
             zeros_count = 0;
