@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::pixel_matrix::pixel_matrix::PixelMatrix;
 pub struct PixelMatrixBlockIterator<'a, T> {
     pixel_matrix: &'a mut PixelMatrix<T>,
@@ -9,7 +11,7 @@ pub struct PixelMatrixBlockIterator<'a, T> {
     use_default_padding: bool,
 }
 
-impl<'a, T: Default + Copy> PixelMatrixBlockIterator<'a, T> {
+impl<'a, T: Default + Copy + Debug> PixelMatrixBlockIterator<'a, T> {
     pub fn new(
         pixel_matrix: &'a mut PixelMatrix<T>,
         block_width: usize,

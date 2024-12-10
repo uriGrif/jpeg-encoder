@@ -46,11 +46,7 @@ impl JpegImage {
         for i in 1..4 {
             file.write_u8(i)?;
             let (h, v) = Self::get_downsampling_factor(self.chrominance_downsampling_ratio);
-            let sampling_factor: u8 = if i == 1 {
-                0x22
-            } else {
-                ((2u8 / (h as u8)) << 4) | (2u8 / (v as u8))
-            };
+            let sampling_factor: u8 = if i == 1 { ((h as u8) << 4) | (v as u8) } else { 0x11 };
             file.write_u8(sampling_factor)?;
             file.write_u8(if i == 1 { 0 } else { 1 })?; // quant table
         }

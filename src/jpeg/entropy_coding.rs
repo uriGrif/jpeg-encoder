@@ -6,6 +6,7 @@ use bitvec::vec::BitVec;
 use crate::pixel_matrix::pixel_matrix::PixelMatrix;
 use crate::utils::bitvec_utils::write_bits;
 
+#[derive(Debug)]
 struct RunLength {
     symbol: u8,
     amplitude: i16, // coefficient
@@ -34,7 +35,9 @@ impl JpegImage {
 
         let mut run_length_result_buffer = Vec::<RunLength>::with_capacity(64);
 
-        let mut prev_dc_coeff = 0i16;
+        let mut y_prev_dc_coeff = 0i16;
+        let mut cb_prev_dc_coeff = 0i16;
+        let mut cr_prev_dc_coeff = 0i16;
 
         let mut aux_buffer = Vec::<i16>::with_capacity(
             8 * horizontal_downsampling * 8 * vertical_downsampling
@@ -43,14 +46,20 @@ impl JpegImage {
         let process_single_block = RefCell::new(
             |
                 block_buffer: &mut Vec<i16>,
+                prev_dc_coeff: &mut i16,
                 dc_huffman_table: &HuffmanTable,
                 ac_huffman_table: &HuffmanTable
             | {
                 run_length_result_buffer.clear();
                 JpegImage::runlength_encode(
-                    &mut prev_dc_coeff,
+                    prev_dc_coeff,
                     &block_buffer,
                     &mut run_length_result_buffer
+                );
+                println!(
+                    "Run Length buffer (items amount: {}):\n{:?}\n",
+                    run_length_result_buffer.len(),
+                    run_length_result_buffer
                 );
                 JpegImage::huffman_encode(
                     &run_length_result_buffer,
@@ -78,6 +87,7 @@ impl JpegImage {
                     &mut (|block_buffer: &mut Vec<i16>|
                         process_single_block.borrow_mut()(
                             block_buffer,
+                            &mut y_prev_dc_coeff,
                             get_huffman_table(HuffmanTableType::YDC),
                             get_huffman_table(HuffmanTableType::YAC)
                         ))
@@ -96,6 +106,7 @@ impl JpegImage {
                 &mut (|block_buffer: &mut Vec<i16>|
                     process_single_block.borrow_mut()(
                         block_buffer,
+                        &mut cb_prev_dc_coeff,
                         get_huffman_table(HuffmanTableType::CHDC),
                         get_huffman_table(HuffmanTableType::CHAC)
                     ))
@@ -105,6 +116,7 @@ impl JpegImage {
                 &mut (|block_buffer: &mut Vec<i16>|
                     process_single_block.borrow_mut()(
                         block_buffer,
+                        &mut cr_prev_dc_coeff,
                         get_huffman_table(HuffmanTableType::CHDC),
                         get_huffman_table(HuffmanTableType::CHAC)
                     ))
@@ -122,7 +134,7 @@ impl JpegImage {
     }
 
     fn get_run_length_symbol(zeros_count: u8, bit_length: u8) -> u8 {
-        ((zeros_count & 0xf0) << 4) | (bit_length & 0x0f)
+        (zeros_count << 4) | bit_length
     }
 
     fn coeff_to_amplitude(value: i16, bit_length: u8) -> i16 {
@@ -134,17 +146,18 @@ impl JpegImage {
         dct_coeffs: &Vec<i16>,
         result_buffer: &mut Vec<RunLength>
     ) {
-        let dc_bit_length = Self::bit_length(dct_coeffs[0].abs());
+        let dc_coeff = dct_coeffs[0] - *prev_dc_coeff;
+        *prev_dc_coeff = dct_coeffs[0];
+
+        let dc_bit_length = Self::bit_length(dc_coeff.abs());
         if dc_bit_length > 11 {
             panic!("DC coefficient bit length greater than 11!");
         }
-        let dc_coeff = dct_coeffs[0] - *prev_dc_coeff;
         // handle DC coefficient
         result_buffer.push(RunLength {
             symbol: Self::get_run_length_symbol(0, dc_bit_length),
             amplitude: Self::coeff_to_amplitude(dc_coeff, dc_bit_length),
         });
-        *prev_dc_coeff = dct_coeffs[0];
 
         // handle AC coefficients
         let mut zeros_count = 0u8;
@@ -178,7 +191,7 @@ impl JpegImage {
             }
             result_buffer.push(RunLength {
                 symbol: Self::get_run_length_symbol(zeros_count, ac_bit_length),
-                amplitude: Self::coeff_to_amplitude(ac_coeff, dc_bit_length),
+                amplitude: Self::coeff_to_amplitude(ac_coeff, ac_bit_length),
             });
             zeros_count = 0;
             i += 1;
@@ -191,7 +204,9 @@ impl JpegImage {
         dc_huffman_table: &HuffmanTable,
         ac_huffman_table: &HuffmanTable
     ) {
+        let mut a = 0;
         for (i, r) in runlength.iter().enumerate() {
+            a += 1;
             if i == 0 {
                 // dc coeff
                 let (code, code_length) = dc_huffman_table
@@ -211,5 +226,6 @@ impl JpegImage {
                 write_bits(bitvec, r.amplitude as u32, r.symbol & 0x0f);
             }
         }
+        println!("amount written in huffman: {}\n", a);
     }
 }

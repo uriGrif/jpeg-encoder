@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use crate::pixel_matrix::block_iterator::PixelMatrixBlockIterator;
 
 pub struct PixelMatrix<T> {
@@ -6,7 +7,7 @@ pub struct PixelMatrix<T> {
     pub pixels: Vec<T>,
 }
 
-impl<T: Default + Copy> PixelMatrix<T> {
+impl<T: Default + Copy + Debug> PixelMatrix<T> {
     pub fn new(width: usize, height: usize) -> PixelMatrix<T> {
         PixelMatrix {
             width,
@@ -60,6 +61,15 @@ impl<T: Default + Copy> PixelMatrix<T> {
         use_default_padding: bool
     ) -> PixelMatrixBlockIterator<'_, T> {
         PixelMatrixBlockIterator::new(self, block_width, block_height, use_default_padding)
+    }
+
+    pub fn pretty_print(&self) {
+        for i in 0..self.height {
+            for j in 0..self.width {
+                print!("{:?}  ", self.pixels[i * self.height + j]);
+            }
+            println!(); // Move to the next line after each row
+        }
     }
 }
 

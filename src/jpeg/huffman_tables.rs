@@ -29,34 +29,17 @@ impl<'a> HuffmanTable<'a> {
     }
 
     pub fn get_code(&self, symbol: u8) -> Option<(u32, u8)> {
-        let mut code: u32 = 0;
-        let mut code_length: u8 = 0;
         for i in 0..16 {
             for j in self.offsets[i]..self.offsets[i + 1] {
                 if symbol == self.symbols[j as usize] {
-                    code = self.codes[j as usize];
-                    code_length = (i as u8) + 1;
+                    let code: u32 = self.codes[j as usize];
+                    let code_length: u8 = (i as u8) + 1;
                     return Some((code, code_length));
                 }
             }
         }
         return None;
     }
-}
-
-pub fn generate_codes(offsets: &[u8], codes_amount: usize) -> Vec<u32> {
-    let mut code: u32 = 0;
-
-    let mut codes = vec![0;codes_amount];
-
-    for i in 0..16 {
-        for j in offsets[i]..offsets[i + 1] {
-            codes[j as usize] = code;
-            code += 1;
-        }
-        code <<= 1;
-    }
-    codes
 }
 
 pub static mut Y_DC_HUFFMAN_TABLE: HuffmanTable = HuffmanTable {

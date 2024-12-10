@@ -38,7 +38,7 @@ impl JpegImage {
         let (horizontal_downsampling, vertical_downsampling): (
             usize,
             usize,
-        ) = Self::get_downsampling_factor(DEFAULT_DOWNSAMPLING_RATIO);
+        ) = Self::get_downsampling_factor(chrominance_downsampling_ratio);
 
         let padded_width = if width % 8 == 0 {
             width as usize
@@ -97,12 +97,12 @@ impl JpegImage {
             DctAlgorithm::BinDct
         );
 
-        image.load_bmp_rgb_to_jpeg_ycbcr(bmp_image);
+        image.load_bmp_rgb_to_jpeg_ycbcr(&bmp_image);
 
         image
     }
 
-    fn load_bmp_rgb_to_jpeg_ycbcr(&mut self, bmp_image: BmpImage) {
+    fn load_bmp_rgb_to_jpeg_ycbcr(&mut self, bmp_image: &BmpImage) {
         let mut f = |rgb_pixel: &RGBValue| {
             let ycbcr: YCbCrValue = rgb_to_ycbcr(rgb_pixel);
 
