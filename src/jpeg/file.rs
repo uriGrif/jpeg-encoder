@@ -90,7 +90,16 @@ impl JpegImage {
     }
 
     fn write_image_data(&self, file: &mut File) -> io::Result<usize> {
-        file.write(self.entropy_coded_bits.as_raw_slice())
+        self.entropy_coded_bits
+            .as_raw_slice()
+            .into_iter()
+            .for_each(|byte| {
+                file.write_u8(*byte);
+                if *byte == 0xff {
+                    file.write_u8(0); // escape possible marker
+                }
+            });
+        Ok(1)
     }
 
     pub fn generate_file(&self) -> std::io::Result<()> {

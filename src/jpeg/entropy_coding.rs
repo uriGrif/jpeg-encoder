@@ -56,11 +56,11 @@ impl JpegImage {
                     &block_buffer,
                     &mut run_length_result_buffer
                 );
-                println!(
-                    "Run Length buffer (items amount: {}):\n{:?}\n",
-                    run_length_result_buffer.len(),
-                    run_length_result_buffer
-                );
+                // println!(
+                //     "Run Length buffer (items amount: {}):\n{:?}\n",
+                //     run_length_result_buffer.len(),
+                //     run_length_result_buffer
+                // );
                 JpegImage::huffman_encode(
                     &run_length_result_buffer,
                     &mut self.entropy_coded_bits,
@@ -226,6 +226,5 @@ impl JpegImage {
                 write_bits(bitvec, r.amplitude as u32, r.symbol & 0x0f);
             }
         }
-        println!("amount written in huffman: {}\n", a);
     }
 }
