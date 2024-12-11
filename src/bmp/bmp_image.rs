@@ -69,10 +69,11 @@ impl BmpImage {
             for col in 0..self.width as usize {
                 _ = self.file.as_ref().unwrap().read(&mut pixel_buffer);
 
+                // BMP stores the pixel in BGR order (yeah, not kidding)
                 self.pixels.set_pixel(row, col, (
-                    pixel_buffer[0],
-                    pixel_buffer[1],
                     pixel_buffer[2],
+                    pixel_buffer[1],
+                    pixel_buffer[0],
                 ));
 
                 if col == (self.width as usize) - 1 {

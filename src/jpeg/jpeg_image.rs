@@ -111,7 +111,7 @@ impl JpegImage {
             bmp_image.width,
             bmp_image.height,
             DEFAULT_DOWNSAMPLING_RATIO,
-            DctAlgorithm::BinDct
+            DctAlgorithm::RealDct
         );
 
         for i in 0..bmp_image.height as usize {
