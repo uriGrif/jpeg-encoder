@@ -2,10 +2,10 @@
 pub type RGBValue = (u8, u8, u8);
 pub type YCbCrValue = (u8, u8, u8);
 
-pub fn rgb_to_ycbcr((r, g, b): &RGBValue) -> YCbCrValue {
-    let r: f32 = *r as f32;
-    let g: f32 = *g as f32;
-    let b: f32 = *b as f32;
+pub fn rgb_to_ycbcr((r, g, b): RGBValue) -> YCbCrValue {
+    let r: f32 = r as f32;
+    let g: f32 = g as f32;
+    let b: f32 = b as f32;
 
     let y: u8 = (0.299 * r + 0.587 * g + 0.114 * b) as u8;
     let cb: u8 = (128.0 - 0.168736 * r - 0.331264 * g + 0.5 * b) as u8;

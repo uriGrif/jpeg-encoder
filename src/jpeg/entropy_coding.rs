@@ -204,9 +204,7 @@ impl JpegImage {
         dc_huffman_table: &HuffmanTable,
         ac_huffman_table: &HuffmanTable
     ) {
-        let mut a = 0;
         for (i, r) in runlength.iter().enumerate() {
-            a += 1;
             if i == 0 {
                 // dc coeff
                 let (code, code_length) = dc_huffman_table

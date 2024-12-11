@@ -74,6 +74,16 @@ impl BmpImage {
                     pixel_buffer[1],
                     pixel_buffer[2],
                 ));
+
+                if col == (self.width as usize) - 1 {
+                    // ignore bytes added at the end of each line so that its size in bytes is a multiple of 4 (BMP format)
+                    let bytes_to_ignore = 4 - ((self.width * 3) % 4);
+                    // the * 3 is to account for 3 bytes for each pixel
+                    for _ in 0..bytes_to_ignore {
+                        let mut aux = [0u8];
+                        _ = self.file.as_ref().unwrap().read(&mut aux);
+                    }
+                }
             }
         }
     }

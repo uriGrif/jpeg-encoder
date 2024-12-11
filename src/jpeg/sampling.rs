@@ -23,6 +23,28 @@ impl JpegImage {
         }
     }
 
+    pub fn get_downsampled_dimensions(
+        width: usize,
+        height: usize,
+        horizontal_downsampling: usize,
+        vertical_downsampling: usize
+    ) -> (usize, usize) {
+        let aux_width = width / horizontal_downsampling;
+        let downsampled_width = if aux_width % 8 == 0 {
+            aux_width as usize
+        } else {
+            (aux_width + 8 - (aux_width % 8)) as usize
+        };
+
+        let height_aux = height / vertical_downsampling;
+        let downsampled_height = if height_aux % 8 == 0 {
+            height_aux as usize
+        } else {
+            (height_aux + 8 - (height_aux % 8)) as usize
+        };
+        (downsampled_width, downsampled_height)
+    }
+
     pub fn chrominance_downsampling(&mut self) {
         let (horizontal_downsampling, vertical_downsampling): (
             usize,
@@ -33,11 +55,15 @@ impl JpegImage {
             return;
         }
 
-        let new_channel_width = (self.width as usize).div_ceil(horizontal_downsampling);
-        let new_channel_height = (self.height as usize).div_ceil(vertical_downsampling);
+        let (downsampled_width, downsampled_height) = Self::get_downsampled_dimensions(
+            self.width as usize,
+            self.height as usize,
+            horizontal_downsampling,
+            vertical_downsampling
+        );
 
-        let mut new_cb = PixelMatrix::<u8>::new(new_channel_width, new_channel_height);
-        let mut new_cr = PixelMatrix::<u8>::new(new_channel_width, new_channel_height);
+        let mut new_cb = PixelMatrix::<u8>::new(downsampled_width, downsampled_height);
+        let mut new_cr = PixelMatrix::<u8>::new(downsampled_width, downsampled_height);
 
         let add_average = |new_channel: &mut PixelMatrix<u8>, block_buffer: &mut Vec<u8>| {
             new_channel.push_next(

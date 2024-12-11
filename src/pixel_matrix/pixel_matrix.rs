@@ -37,8 +37,7 @@ impl<T: Default + Copy + Debug> PixelMatrix<T> {
     }
 
     pub fn get_pixel(&self, row: usize, col: usize) -> Option<T> {
-        let idx = row * self.width + col;
-        if idx >= self.pixels.len() {
+        if row >= self.height || col >= self.width {
             return None;
         }
         Some(self.pixels[row * self.width + col])
@@ -66,9 +65,9 @@ impl<T: Default + Copy + Debug> PixelMatrix<T> {
     pub fn pretty_print(&self) {
         for i in 0..self.height {
             for j in 0..self.width {
-                print!("{:?}  ", self.pixels[i * self.height + j]);
+                print!("{:?}  ", self.pixels[i * self.width + j]);
             }
-            println!(); // Move to the next line after each row
+            println!(";"); // Move to the next line after each row
         }
     }
 }

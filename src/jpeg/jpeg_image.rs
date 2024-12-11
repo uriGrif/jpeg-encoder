@@ -29,31 +29,48 @@ impl JpegImage {
         chrominance_downsampling_ratio: (u8, u8, u8),
         dct_algorithm: DctAlgorithm
     ) -> JpegImage {
-        // initialize channels matrixes
-        let y_channel = PixelMatrix::new(width as usize, height as usize);
-        let cb_channel = PixelMatrix::new(width as usize, height as usize);
-        let cr_channel = PixelMatrix::new(width as usize, height as usize);
-
-        // initialize dct coefficients matrixes
         let (horizontal_downsampling, vertical_downsampling): (
             usize,
             usize,
         ) = Self::get_downsampling_factor(chrominance_downsampling_ratio);
 
-        let padded_width = if width % 8 == 0 {
+        // account for padding, as dct works in 8x8 blocks
+        let aux_block_width = 8 * (horizontal_downsampling as i32);
+        let padded_width = if width % aux_block_width == 0 {
             width as usize
         } else {
-            (width + 8 - (width % 8)) as usize
-        }; // account for padding, as dct works in 8x8 blocks
-        let padded_height = if height % 8 == 0 {
-            height as usize
-        } else {
-            (height + 8 - (height % 8)) as usize
+            (width + aux_block_width - (width % aux_block_width)) as usize
         };
 
-        let downsampled_width = padded_width / horizontal_downsampling;
-        let downsampled_height = padded_height / vertical_downsampling;
+        let aux_block_height = 8 * (vertical_downsampling as i32);
+        let padded_height = if height % aux_block_height == 0 {
+            height as usize
+        } else {
+            (height + aux_block_height - (height % aux_block_height)) as usize
+        };
 
+        let (downsampled_width, downsampled_height) = Self::get_downsampled_dimensions(
+            width as usize,
+            height as usize,
+            horizontal_downsampling,
+            vertical_downsampling
+        );
+
+        // initialize channels matrixes
+        let y_channel = PixelMatrix::new_with_default(
+            padded_width as usize,
+            padded_height as usize
+        );
+        let cb_channel = PixelMatrix::new_with_default(
+            padded_width as usize,
+            padded_height as usize
+        );
+        let cr_channel = PixelMatrix::new_with_default(
+            padded_width as usize,
+            padded_height as usize
+        );
+
+        // initialize dct coefficients matrixes
         let y_dct_coeffs: PixelMatrix<i16> = PixelMatrix::<i16>::new_with_default(
             padded_width,
             padded_height
@@ -97,20 +114,21 @@ impl JpegImage {
             DctAlgorithm::BinDct
         );
 
-        image.load_bmp_rgb_to_jpeg_ycbcr(&bmp_image);
+        for i in 0..bmp_image.height as usize {
+            for j in 0..bmp_image.width as usize {
+                match bmp_image.pixels.get_pixel(i, j) {
+                    Some(rgb_pixel) => {
+                        let ycbcr: YCbCrValue = rgb_to_ycbcr(rgb_pixel);
+
+                        image.y_channel.set_pixel(i, j, ycbcr.0);
+                        image.cb_channel.set_pixel(i, j, ycbcr.1);
+                        image.cr_channel.set_pixel(i, j, ycbcr.2);
+                    }
+                    _ => {}
+                }
+            }
+        }
 
         image
-    }
-
-    fn load_bmp_rgb_to_jpeg_ycbcr(&mut self, bmp_image: &BmpImage) {
-        let mut f = |rgb_pixel: &RGBValue| {
-            let ycbcr: YCbCrValue = rgb_to_ycbcr(rgb_pixel);
-
-            self.y_channel.push_next(ycbcr.0);
-            self.cb_channel.push_next(ycbcr.1);
-            self.cr_channel.push_next(ycbcr.2);
-        };
-
-        bmp_image.pixels.for_each_pixel(&mut f);
     }
 }
