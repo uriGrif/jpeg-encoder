@@ -2,9 +2,8 @@ use bitvec::order::Msb0;
 use bitvec::vec::BitVec;
 use crate::jpeg::dct_quant::DctAlgorithm;
 use crate::pixel_matrix::pixel_matrix::PixelMatrix;
-use crate::jpeg::sampling::DEFAULT_DOWNSAMPLING_RATIO;
 use crate::bmp::bmp_image::BmpImage;
-use crate::utils::colorspace::{ RGBValue, YCbCrValue, rgb_to_ycbcr };
+use crate::utils::colorspace::{ YCbCrValue, rgb_to_ycbcr };
 
 pub struct JpegImage {
     pub path: String,
@@ -102,7 +101,12 @@ impl JpegImage {
         image
     }
 
-    pub fn from_bmp(bmp_path: &String, jpeg_path: &String) -> JpegImage {
+    pub fn from_bmp(
+        bmp_path: &String,
+        jpeg_path: &String,
+        chrominance_downsampling_ratio: (u8, u8, u8),
+        dct_algorithm: DctAlgorithm
+    ) -> JpegImage {
         let mut bmp_image: BmpImage = BmpImage::new(bmp_path);
         bmp_image.load_pixels();
 
@@ -110,8 +114,8 @@ impl JpegImage {
             jpeg_path.clone(),
             bmp_image.width,
             bmp_image.height,
-            DEFAULT_DOWNSAMPLING_RATIO,
-            DctAlgorithm::RealDct
+            chrominance_downsampling_ratio,
+            dct_algorithm
         );
 
         for i in 0..bmp_image.height as usize {

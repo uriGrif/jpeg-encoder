@@ -65,6 +65,8 @@ impl BmpImage {
         // the file image data in bmp files goes left to right, bottom to top
         // here, it will be stored left to right, top to bottom
 
+        let bytes_to_ignore = ((self.width as u32) * 3).div_ceil(4) * 4 - (self.width as u32) * 3; // the * 3 is to account for 3 bytes for each pixel
+
         for row in (0..self.height as usize).rev() {
             for col in 0..self.width as usize {
                 _ = self.file.as_ref().unwrap().read(&mut pixel_buffer);
@@ -76,10 +78,8 @@ impl BmpImage {
                     pixel_buffer[0],
                 ));
 
+                // ignore bytes added at the end of each line so that its size in bytes is a multiple of 4 (BMP format)
                 if col == (self.width as usize) - 1 {
-                    // ignore bytes added at the end of each line so that its size in bytes is a multiple of 4 (BMP format)
-                    let bytes_to_ignore = 4 - ((self.width * 3) % 4);
-                    // the * 3 is to account for 3 bytes for each pixel
                     for _ in 0..bytes_to_ignore {
                         let mut aux = [0u8];
                         _ = self.file.as_ref().unwrap().read(&mut aux);

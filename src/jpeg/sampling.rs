@@ -2,8 +2,6 @@ use crate::JpegImage;
 use crate::pixel_matrix::pixel_matrix::PixelMatrix;
 use std::thread;
 
-pub const DEFAULT_DOWNSAMPLING_RATIO: (u8, u8, u8) = (4, 2, 0);
-
 impl JpegImage {
     pub fn get_downsampling_factor(downsampling_ratio: (u8, u8, u8)) -> (usize, usize) {
         // returns the horizontal and vertical factors by which the chrominance channels must be downsampled

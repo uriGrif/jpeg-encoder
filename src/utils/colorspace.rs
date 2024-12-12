@@ -9,7 +9,7 @@ pub fn rgb_to_ycbcr((r, g, b): RGBValue) -> YCbCrValue {
 
     let y: u8 = (0.299 * r + 0.587 * g + 0.114 * b) as u8;
     let cb: u8 = (128.0 - 0.168736 * r - 0.331264 * g + 0.5 * b) as u8;
-    let cr: u8 = (128.0 + 0.5 * r - 0.418688 * g + 0.081312 * b) as u8; // there are ways of doing this by shifting bits
+    let cr: u8 = (128.0 + 0.5 * r - 0.418688 * g - 0.081312 * b) as u8; // there are ways of doing this by shifting bits
 
     (y, cb, cr)
 }

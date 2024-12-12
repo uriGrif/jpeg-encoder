@@ -1,9 +1,11 @@
+use clap::ValueEnum;
 use crate::JpegImage;
 use crate::pixel_matrix::block_iterator::PixelMatrixBlockIterator;
 use crate::jpeg::quant_tables::*;
 use std::thread;
 use std::f32::consts::{ PI, SQRT_2 };
 
+#[derive(Debug, Clone, ValueEnum)]
 pub enum DctAlgorithm {
     RealDct,
     BinDct,
@@ -88,14 +90,14 @@ impl JpegImage {
             let x6 = aux_buffer[i * 8 + 6];
             let x7 = aux_buffer[i * 8 + 7];
 
-            let mut x7_1 = x0 - x7;
-            let mut x0_1 = x0 - (x7_1 >> 1);
+            let x7_1 = x0 - x7;
+            let x0_1 = x0 - (x7_1 >> 1);
             let mut x6_1 = x1 - x6;
-            let mut x1_1 = x1 - (x6_1 >> 1);
+            let x1_1 = x1 - (x6_1 >> 1);
             let mut x5_1 = x2 - x5;
-            let mut x2_1 = x2 - (x5_1 >> 1);
-            let mut x4_1 = x3 - x4;
-            let mut x3_1 = x3 - (x4_1 >> 1);
+            let x2_1 = x2 - (x5_1 >> 1);
+            let x4_1 = x3 - x4;
+            let x3_1 = x3 - (x4_1 >> 1);
 
             x6_1 = ((x5_1 * 3) >> 3) + x6_1;
             x5_1 = ((x6_1 * 5) >> 3) - x5_1;
@@ -107,7 +109,7 @@ impl JpegImage {
             let mut x4_2 = x4_1 + x5_1;
             let mut x5_2 = x4_1 - x5_1;
             let mut x6_2 = x7_1 - x6_1;
-            let mut x7_2 = x7_1 + x6_1;
+            let x7_2 = x7_1 + x6_1;
 
             x4_2 = x4_2 - (x7_2 >> 3);
             x0_2 = x0_2 + x1_2;
@@ -138,14 +140,14 @@ impl JpegImage {
             let x6 = aux_buffer[6 * 8 + i];
             let x7 = aux_buffer[7 * 8 + i];
 
-            let mut x7_1 = x0 - x7;
-            let mut x0_1 = x0 - (x7_1 >> 1);
+            let x7_1 = x0 - x7;
+            let x0_1 = x0 - (x7_1 >> 1);
             let mut x6_1 = x1 - x6;
-            let mut x1_1 = x1 - (x6_1 >> 1);
+            let x1_1 = x1 - (x6_1 >> 1);
             let mut x5_1 = x2 - x5;
-            let mut x2_1 = x2 - (x5_1 >> 1);
-            let mut x4_1 = x3 - x4;
-            let mut x3_1 = x3 - (x4_1 >> 1);
+            let x2_1 = x2 - (x5_1 >> 1);
+            let x4_1 = x3 - x4;
+            let x3_1 = x3 - (x4_1 >> 1);
 
             x6_1 = ((x5_1 * 3) >> 3) + x6_1;
             x5_1 = ((x6_1 * 5) >> 3) - x5_1;
@@ -157,7 +159,7 @@ impl JpegImage {
             let mut x4_2 = x4_1 + x5_1;
             let mut x5_2 = x4_1 - x5_1;
             let mut x6_2 = x7_1 - x6_1;
-            let mut x7_2 = x7_1 + x6_1;
+            let x7_2 = x7_1 + x6_1;
 
             x4_2 = x4_2 - (x7_2 >> 3);
             x0_2 = x0_2 + x1_2;

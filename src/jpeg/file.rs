@@ -94,9 +94,9 @@ impl JpegImage {
             .as_raw_slice()
             .into_iter()
             .for_each(|byte| {
-                file.write_u8(*byte);
+                _ = file.write_u8(*byte);
                 if *byte == 0xff {
-                    file.write_u8(0); // escape possible marker
+                    _ = file.write_u8(0); // escape possible marker
                 }
             });
         Ok(1)

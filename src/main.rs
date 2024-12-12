@@ -13,49 +13,56 @@ fn main() {
 
     // create jpeg image object from bmp file, with color space conversion to ycbcr
 
-    println!("Loading bmp");
-    let mut jpeg_image: JpegImage = JpegImage::from_bmp(&args.image, &args.output);
+    println!("Loading bmp...");
+    let mut jpeg_image: JpegImage = JpegImage::from_bmp(
+        &args.image,
+        &args.output,
+        args.subsampling_ratio,
+        args.dct_algorithm
+    );
 
-    println!("Loaded bmp: ");
-    println!("Y channel: ");
-    jpeg_image.y_channel.pretty_print();
-    println!("Cb channel: ");
-    jpeg_image.cb_channel.pretty_print();
-    println!("Cr channel: ");
-    jpeg_image.cr_channel.pretty_print();
+    println!("Loaded!");
+    // println!("Y channel: ");
+    // jpeg_image.y_channel.pretty_print();
+    // println!("Cb channel: ");
+    // jpeg_image.cb_channel.pretty_print();
+    // println!("Cr channel: ");
+    // jpeg_image.cr_channel.pretty_print();
 
     // Chrominance Downsampling
 
-    println!("Chrominance downsampling");
+    println!("Chrominance downsampling...");
     jpeg_image.chrominance_downsampling();
 
-    println!("Downsampling done: ");
-    println!("Y channel: ");
-    jpeg_image.y_channel.pretty_print();
-    println!("Cb channel: ");
-    jpeg_image.cb_channel.pretty_print();
-    println!("Cr channel: ");
-    jpeg_image.cr_channel.pretty_print();
+    println!("Done!");
+    // println!("Y channel: ");
+    // jpeg_image.y_channel.pretty_print();
+    // println!("Cb channel: ");
+    // jpeg_image.cb_channel.pretty_print();
+    // println!("Cr channel: ");
+    // jpeg_image.cr_channel.pretty_print();
 
     // Discrete Cosine Transform and Quantization
 
-    println!("DCT + quant");
+    println!("Performing Discrete Cosine Transform + Quantization...");
     jpeg_image.dct_and_quantization();
 
-    println!("DCT and quant done: ");
-    println!("Y channel: ");
-    jpeg_image.y_dct_coeffs.pretty_print();
-    println!("Cb channel: ");
-    jpeg_image.cb_dct_coeffs.pretty_print();
-    println!("Cr channel: ");
-    jpeg_image.cr_dct_coeffs.pretty_print();
+    println!("Done!");
+    // println!("Y channel: ");
+    // jpeg_image.y_dct_coeffs.pretty_print();
+    // println!("Cb channel: ");
+    // jpeg_image.cb_dct_coeffs.pretty_print();
+    // println!("Cr channel: ");
+    // jpeg_image.cr_dct_coeffs.pretty_print();
 
     // Run Length and Huffman Encoding
 
-    println!("Entropy coding");
+    println!("Entropy encoding...");
     jpeg_image.generate_entropy_encoded_data();
+    println!("Done!");
 
     // write to ouptut file
     println!("Creating file");
     jpeg_image.generate_file().unwrap();
+    println!("Done!");
 }
