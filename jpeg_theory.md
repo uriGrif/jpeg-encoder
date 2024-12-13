@@ -68,11 +68,11 @@ The Luminance channel contains the brightness information, while the chrominance
 
 There are multiple ways of converting from one to another, but I’m going to use [this one](https://en.wikipedia.org/wiki/YCbCr#JPEG_conversion)
 
-$$
+```math
 Y = 0 + 0.299*R + 0.587*G + 0.114*B \\
 C_b = 128 - 0.168736*R - 0.331264*G + 0.5*B \\
 C_r = 128 + 0.5*R - 0.418688*G - 0.081312*B
-$$
+```
 
 ### About the BMP File
 
@@ -166,6 +166,7 @@ Finally, in the resulting matrix, we will see that most of the values in the low
 Finally, for each block of 8x8 pixels, we have a list of 64 integers that we can use to reconstruct the original block (using the same DCT patterns).
 
 Next, we are going to list these numbers diagonally, from upper left to lower right. Like this:
+
 ![](https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/JPEG_ZigZag.svg/220px-JPEG_ZigZag.svg.png)
 
 If we see the list layed out this way, we will most likely see that the list ends up in a bunch of zeros. This is thanks to the quantization step.
